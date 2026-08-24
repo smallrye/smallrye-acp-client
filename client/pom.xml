@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.smallrye.ai</groupId>
+        <artifactId>acp-java-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>acp-java-client</artifactId>
+    <description>Java ACP Client - examples</description>
+    <name>AI :: Agent Client Protocol :: Java Client</name>
+
+    <properties>
+        <quarkus.package.type>uber-jar</quarkus.package.type>
+    </properties>
+
+    <dependencies>
+        <!-- Quarkus Arc (CDI) -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-arc</artifactId>
+        </dependency>
+
+        <!-- Aesh CLI framework -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-aesh</artifactId>
+        </dependency>
+
+        <!-- Core module (Acp Client, transport) -->
+        <dependency>
+            <groupId>io.smallrye.ai</groupId>
+            <artifactId>acp-java-core</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- Schema module (v1 types used directly in AcpClientCommand) -->
+        <dependency>
+            <groupId>io.smallrye.ai</groupId>
+            <artifactId>acp-java-schema</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>io.quarkus</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <extensions>true</extensions>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build</goal>
+                            <goal>generate-code</goal>
+                            <goal>generate-code-tests</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
