@@ -1,0 +1,4 @@
+name: SmallRye Java ACP Client and library
+release:
+  current-version: 0.0.99
+  next-version: 0.1.0-SNAPSHOT
