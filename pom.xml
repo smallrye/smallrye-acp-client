@@ -56,10 +56,11 @@
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <acp-core.version>0.11.0</acp-core.version>
         <jackson-databind.version>2.18.2</jackson-databind.version>
-        <jboss-logmanager.version>3.2.2.Final</jboss-logmanager.version>
+
         <quarkus.platform.version>3.38.3</quarkus.platform.version>
+
+        <jboss-logmanager.version>3.2.2.Final</jboss-logmanager.version>
         <slf4j-jboss-logmanager.version>2.1.0.Final</slf4j-jboss-logmanager.version>
         <slf4j.version>2.0.9</slf4j.version>
 
@@ -87,13 +88,6 @@
                 <groupId>io.smallrye.ai</groupId>
                 <artifactId>acp-client-core</artifactId>
                 <version>${project.version}</version>
-            </dependency>
-
-            <!-- ACP -->
-            <dependency>
-                <groupId>com.agentclientprotocol</groupId>
-                <artifactId>acp-core</artifactId>
-                <version>${acp-core.version}</version>
             </dependency>
 
             <!-- Jackson JSON processing -->
