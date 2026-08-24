@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>io.smallrye.ai</groupId>
+    <artifactId>acp-java-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <description>Agent Client Protocol - Java project</description>
+    <name>AI :: Agent Client Protocol :: Java SDK :: Parent</name>
+
+    <licenses>
+        <license>
+            <distribution>repo</distribution>
+            <name>Apache-2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <id>snowdrop</id>
+            <name>Snowdrop Team</name>
+        </developer>
+        <developer>
+            <id>cmoullia</id>
+            <name>Charles Moulliard</name>
+            <email>cmoulliard@ibm.com</email>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git@github.com:snowdrop/acp-client.git</connection>
+        <developerConnection>scm:git:git@github.com:snowdrop/acp-client.git</developerConnection>
+        <url>https://github.com/snowdrop/acp-client.git</url>
+        <tag>HEAD</tag>
+    </scm>
+
+    <modules>
+        <module>schema</module>
+        <module>core</module>
+        <module>client</module>
+    </modules>
+
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <acp-core.version>0.11.0</acp-core.version>
+        <jackson-databind.version>2.18.2</jackson-databind.version>
+        <jboss-logmanager.version>3.2.2.Final</jboss-logmanager.version>
+        <quarkus.platform.version>3.38.3</quarkus.platform.version>
+        <slf4j-jboss-logmanager.version>2.1.0.Final</slf4j-jboss-logmanager.version>
+        <slf4j.version>2.0.9</slf4j.version>
+
+        <exec-maven-plugin.version>3.6.3</exec-maven-plugin.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Quarkus BOM -->
+            <dependency>
+                <groupId>io.quarkus.platform</groupId>
+                <artifactId>quarkus-bom</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Project modules -->
+            <dependency>
+                <groupId>io.smallrye.ai</groupId>
+                <artifactId>acp-client-schema</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.smallrye.ai</groupId>
+                <artifactId>acp-client-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- ACP -->
+            <dependency>
+                <groupId>com.agentclientprotocol</groupId>
+                <artifactId>acp-core</artifactId>
+                <version>${acp-core.version}</version>
+            </dependency>
+
+            <!-- Jackson JSON processing -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${jackson-databind.version}</version>
+            </dependency>
+
+            <!-- Logging -->
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>${slf4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jboss.logmanager</groupId>
+                <artifactId>jboss-logmanager</artifactId>
+                <version>${jboss-logmanager.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jboss.slf4j</groupId>
+                <artifactId>slf4j-jboss-logmanager</artifactId>
+                <version>${slf4j-jboss-logmanager.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+</project>
