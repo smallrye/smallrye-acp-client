@@ -11,6 +11,13 @@
     <description>Agent Client Protocol - Java project</description>
     <name>AI :: Agent Client Protocol :: Java SDK :: Parent</name>
 
+
+    <inceptionYear>2026</inceptionYear>
+    <organization>
+        <name>SmallRye</name>
+        <url>https://wwww.smallrye.io</url>
+    </organization>
+
     <licenses>
         <license>
             <distribution>repo</distribution>
@@ -18,6 +25,7 @@
             <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
         </license>
     </licenses>
+
     <developers>
         <developer>
             <id>snowdrop</id>
@@ -31,9 +39,9 @@
     </developers>
 
     <scm>
-        <connection>scm:git:git@github.com:snowdrop/acp-client.git</connection>
-        <developerConnection>scm:git:git@github.com:snowdrop/acp-client.git</developerConnection>
-        <url>https://github.com/snowdrop/acp-client.git</url>
+        <connection>scm:git:git@github.com:smallrye/smallrye-acp-client.git</connection>
+        <developerConnection>scm:git:git@github.com:smallrye/smallrye-acp-client.git</developerConnection>
+        <url>https://github.com/smallrye/smallrye-acp-client.git</url>
         <tag>HEAD</tag>
     </scm>
 
@@ -113,4 +121,48 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <release>${maven.compiler.release}</release>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>default-test</id>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <configuration>
+                    <attach>true</attach>
+                    <forceCreation>true</forceCreation>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>
