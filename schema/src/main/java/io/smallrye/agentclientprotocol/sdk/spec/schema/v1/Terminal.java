@@ -1,13 +1,14 @@
 package io.smallrye.agentclientprotocol.sdk.spec.schema.v1;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Embed a terminal created with `terminal/create` by its id.
- * 
+ *
  * The terminal must be added before calling `terminal/release`.
- * 
+ *
  * See protocol docs: [Terminal](https://agentclientprotocol.com/protocol/terminals)
  */
 public record Terminal(

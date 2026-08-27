@@ -1,13 +1,13 @@
 package io.smallrye.acp.toolbox;
 
-import org.jboss.logging.Logger;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Set;
+
+import org.jboss.logging.Logger;
 
 public class ProjectUtil {
 
@@ -34,7 +34,7 @@ public class ProjectUtil {
         String projectName = ".".equals(name) ? workDir.getFileName().toString() : name;
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
 
-        Set<String> excludes = Set.of("target", "build", ".git", ".gradle", ".idea", "node_modules",".claude", ".env");
+        Set<String> excludes = Set.of("target", "build", ".git", ".gradle", ".idea", "node_modules", ".claude", ".env");
 
         try {
             Path tempDirectory = Files.createTempDirectory(projectName + "-" + timestamp + "_");
@@ -89,7 +89,8 @@ public class ProjectUtil {
     public static void requireEnv(String varName, String provider) {
         String value = System.getenv(varName);
         if (value == null || value.isBlank()) {
-            System.err.println("ERROR: " + varName + " environment variable is not set (required for " + provider + " provider).");
+            System.err.println(
+                    "ERROR: " + varName + " environment variable is not set (required for " + provider + " provider).");
             System.exit(1);
         }
     }

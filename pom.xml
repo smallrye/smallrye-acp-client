@@ -4,13 +4,18 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <parent>
+        <groupId>io.smallrye</groupId>
+        <artifactId>smallrye-parent</artifactId>
+        <version>51</version>
+    </parent>
+
     <groupId>io.smallrye.ai</groupId>
     <artifactId>acp-java-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <description>Agent Client Protocol - Java project</description>
-    <name>AI :: Agent Client Protocol :: Java SDK :: Parent</name>
-
+    <description>Smallrye Agent Client Protocol - Java project</description>
+    <name>Smallrye AI :: Agent Client Protocol :: Java SDK :: Parent</name>
 
     <inceptionYear>2026</inceptionYear>
     <organization>
@@ -118,6 +123,10 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <version>${maven-javadoc-plugin}</version>
+                <configuration>
+                    <source>${maven.compiler.source}</source>
+                    <release>${maven-compiler-plugin.release}</release>
+                </configuration>
                 <executions>
                     <execution>
                         <id>attach-javadocs</id>

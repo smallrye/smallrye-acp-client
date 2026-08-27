@@ -1,44 +1,54 @@
 package io.smallrye.acp.schema;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 /**
  * Code generator that produces Java records and enums from the ACP JSON Schema.
  *
- * <p>Reads the schema definition from a classpath resource (default: {@code /schema/acp/v1/schema.json})
+ * <p>
+ * Reads the schema definition from a classpath resource (default: {@code /schema/acp/v1/schema.json})
  * and generates one {@code .java} file per type. The version segment (e.g. {@code v1}) is
  * derived from the schema path and appended to the base package name.
  *
- * <p>Supported schema constructs:
+ * <p>
+ * Supported schema constructs:
  * <ul>
- *   <li><b>Objects with properties</b> &rarr; Java {@code record} with Jackson annotations</li>
- *   <li><b>String enums</b> ({@code "enum"} array) &rarr; Java {@code enum} with {@code @JsonValue}</li>
- *   <li><b>oneOf with const values</b> &rarr; Java {@code enum}</li>
- *   <li><b>String/integer type aliases</b> &rarr; skipped (mapped to {@code String}/{@code Integer})</li>
- *   <li><b>anyOf union types</b> &rarr; skipped (use {@code Object} at call sites)</li>
+ * <li><b>Objects with properties</b> &rarr; Java {@code record} with Jackson annotations</li>
+ * <li><b>String enums</b> ({@code "enum"} array) &rarr; Java {@code enum} with {@code @JsonValue}</li>
+ * <li><b>oneOf with const values</b> &rarr; Java {@code enum}</li>
+ * <li><b>String/integer type aliases</b> &rarr; skipped (mapped to {@code String}/{@code Integer})</li>
+ * <li><b>anyOf union types</b> &rarr; skipped (use {@code Object} at call sites)</li>
  * </ul>
  *
- * <p>System properties:
+ * <p>
+ * System properties:
  * <ul>
- *   <li>{@code -DschemaPath=/schema/acp/v1/schema.json} &mdash; classpath resource path (default: {@code /schema/acp/v1/schema.json})</li>
- *   <li>{@code -DbasePackage=com.example.schema} &mdash; base package; version is appended automatically (default: {@code io.smallrye.agentclientprotocol.sdk.spec.schema})</li>
- *   <li>{@code -DoutputDir=target/generated-sources} &mdash; output root directory for generated files (default: {@code target/generated-sources})</li>
+ * <li>{@code -DschemaPath=/schema/acp/v1/schema.json} &mdash; classpath resource path (default:
+ * {@code /schema/acp/v1/schema.json})</li>
+ * <li>{@code -DbasePackage=com.example.schema} &mdash; base package; version is appended automatically (default:
+ * {@code io.smallrye.agentclientprotocol.sdk.spec.schema})</li>
+ * <li>{@code -DoutputDir=target/generated-sources} &mdash; output root directory for generated files (default:
+ * {@code target/generated-sources})</li>
  * </ul>
  *
- * <p>The version is extracted from the schema path: for {@code /schema/acp/v1/schema.json}
+ * <p>
+ * The version is extracted from the schema path: for {@code /schema/acp/v1/schema.json}
  * the version is {@code v1}, producing package {@code io.smallrye.agentclientprotocol.sdk.spec.schema.v1}.
  *
- * <p>Generated files are written to {@code target/generated-sources} by default, so the user
+ * <p>
+ * Generated files are written to {@code target/generated-sources} by default, so the user
  * can review them before copying or merging into the main source tree.
  *
- * <p>Run as a standalone program (from the {@code schema} module):
+ * <p>
+ * Run as a standalone program (from the {@code schema} module):
+ *
  * <pre>{@code
  * mvn compile exec:java -Dexec.mainClass=io.smallrye.acp.schema.JSonSchemaGenerator -pl schema
  * mvn compile exec:java -Dexec.mainClass=io.smallrye.acp.schema.JSonSchemaGenerator -pl schema \
@@ -61,11 +71,12 @@ public class JSonSchemaGenerator {
     /**
      * Reads the ACP JSON Schema and generates Java source files.
      *
-     * <p>The schema path and base package can be configured via system properties:
+     * <p>
+     * The schema path and base package can be configured via system properties:
      * <ul>
-     *   <li>{@code -DschemaPath} &mdash; classpath path to the JSON schema</li>
-     *   <li>{@code -DbasePackage} &mdash; base Java package (version is appended from the schema path)</li>
-     *   <li>{@code -DoutputDir} &mdash; output root directory (default: {@code target/generated-sources})</li>
+     * <li>{@code -DschemaPath} &mdash; classpath path to the JSON schema</li>
+     * <li>{@code -DbasePackage} &mdash; base Java package (version is appended from the schema path)</li>
+     * <li>{@code -DoutputDir} &mdash; output root directory (default: {@code target/generated-sources})</li>
      * </ul>
      *
      * @param args unused
@@ -136,7 +147,7 @@ public class JSonSchemaGenerator {
      * Generates the Java source for a single schema definition, or {@code null} if the
      * type should be skipped (e.g. string aliases, union types).
      *
-     * @param name   the schema definition name (becomes the Java type name)
+     * @param name the schema definition name (becomes the Java type name)
      * @param schema the JSON Schema node
      * @return the generated Java source, or {@code null}
      */
@@ -285,8 +296,9 @@ public class JSonSchemaGenerator {
         // All fields as record components
         for (int i = 0; i < allFields.size(); i++) {
             FieldInfo f = allFields.get(i);
-            sb.append("        @JsonProperty(\"").append(f.jsonName).append("\") ").append(f.javaType).append(" ").append(f.fieldName);
-            sb.append(i < allFields.size() - 1 ? ",\n" : "") ;
+            sb.append("        @JsonProperty(\"").append(f.jsonName).append("\") ").append(f.javaType).append(" ")
+                    .append(f.fieldName);
+            sb.append(i < allFields.size() - 1 ? ",\n" : "");
         }
         sb.append(") {\n");
 
@@ -296,14 +308,16 @@ public class JSonSchemaGenerator {
             for (int i = 0; i < requiredFields.size(); i++) {
                 FieldInfo f = requiredFields.get(i);
                 sb.append(f.javaType).append(" ").append(f.fieldName);
-                if (i < requiredFields.size() - 1) sb.append(", ");
+                if (i < requiredFields.size() - 1)
+                    sb.append(", ");
             }
             sb.append(") {\n");
             sb.append("        this(");
             for (int i = 0; i < allFields.size(); i++) {
                 FieldInfo f = allFields.get(i);
                 sb.append(f.required ? f.fieldName : "null");
-                if (i < allFields.size() - 1) sb.append(", ");
+                if (i < allFields.size() - 1)
+                    sb.append(", ");
             }
             sb.append(");\n");
             sb.append("    }\n");
@@ -380,8 +394,10 @@ public class JSonSchemaGenerator {
     private static String resolveTypeAlias(String typeName) {
         if (allDefs.has(typeName)) {
             JsonNode def = allDefs.get(typeName);
-            if (isStringAlias(def)) return "String";
-            if (isIntegerAlias(def)) return "Integer";
+            if (isStringAlias(def))
+                return "String";
+            if (isIntegerAlias(def))
+                return "Integer";
         }
         return typeName;
     }
@@ -419,12 +435,15 @@ public class JSonSchemaGenerator {
     }
 
     private static String getSimpleType(JsonNode schema) {
-        if (!schema.has("type")) return null;
+        if (!schema.has("type"))
+            return null;
         JsonNode typeNode = schema.get("type");
-        if (typeNode.isTextual()) return typeNode.asText();
+        if (typeNode.isTextual())
+            return typeNode.asText();
         if (typeNode.isArray()) {
             for (JsonNode t : typeNode) {
-                if (!"null".equals(t.asText())) return t.asText();
+                if (!"null".equals(t.asText()))
+                    return t.asText();
             }
         }
         return null;
@@ -432,10 +451,12 @@ public class JSonSchemaGenerator {
 
     private static boolean isTypeOrContains(JsonNode schema, String type) {
         JsonNode typeNode = schema.get("type");
-        if (typeNode.isTextual()) return type.equals(typeNode.asText());
+        if (typeNode.isTextual())
+            return type.equals(typeNode.asText());
         if (typeNode.isArray()) {
             for (JsonNode t : typeNode) {
-                if (type.equals(t.asText())) return true;
+                if (type.equals(t.asText()))
+                    return true;
             }
         }
         return false;
@@ -464,5 +485,6 @@ public class JSonSchemaGenerator {
         }
     }
 
-    private record FieldInfo(String jsonName, String fieldName, String javaType, boolean required) {}
+    private record FieldInfo(String jsonName, String fieldName, String javaType, boolean required) {
+    }
 }

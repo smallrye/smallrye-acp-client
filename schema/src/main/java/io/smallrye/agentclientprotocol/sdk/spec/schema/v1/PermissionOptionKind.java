@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
  * The type of permission option being presented to the user.
- * 
+ *
  * Helps clients choose appropriate icons and UI treatment.
  */
 public enum PermissionOptionKind {

@@ -10,11 +10,14 @@ import java.util.stream.Collectors;
 /**
  * Configuration for launching an ACP agent process via stdio.
  *
- * <p>Encapsulates the command, arguments, and environment variables needed to
+ * <p>
+ * Encapsulates the command, arguments, and environment variables needed to
  * start the agent subprocess. A safe subset of the host environment is inherited
  * by default (platform-dependent).
  *
- * <p>Use the {@link Builder} to construct instances:
+ * <p>
+ * Use the {@link Builder} to construct instances:
+ *
  * <pre>{@code
  * var params = AgentParameters.builder("opencode")
  *         .arg("acp")
@@ -25,11 +28,11 @@ import java.util.stream.Collectors;
 public class AgentParameters {
 
     private static final List<String> DEFAULT_INHERITED_ENV_VARS = System.getProperty("os.name")
-        .toLowerCase()
-        .contains("win")
-                ? List.of("APPDATA", "HOMEDRIVE", "HOMEPATH", "LOCALAPPDATA", "PATH",
-                        "PROCESSOR_ARCHITECTURE", "SYSTEMDRIVE", "SYSTEMROOT", "TEMP", "USERNAME", "USERPROFILE")
-                : List.of("HOME", "LOGNAME", "PATH", "SHELL", "TERM", "USER");
+            .toLowerCase()
+            .contains("win")
+                    ? List.of("APPDATA", "HOMEDRIVE", "HOMEPATH", "LOCALAPPDATA", "PATH",
+                            "PROCESSOR_ARCHITECTURE", "SYSTEMDRIVE", "SYSTEMROOT", "TEMP", "USERNAME", "USERPROFILE")
+                    : List.of("HOME", "LOGNAME", "PATH", "SHELL", "TERM", "USER");
 
     private final String command;
     private final List<String> args;
@@ -45,13 +48,19 @@ public class AgentParameters {
     }
 
     /** @return the executable command (e.g. {@code "opencode"}) */
-    public String getCommand() { return command; }
+    public String getCommand() {
+        return command;
+    }
 
     /** @return the command-line arguments */
-    public List<String> getArgs() { return args; }
+    public List<String> getArgs() {
+        return args;
+    }
 
     /** @return the environment variables for the subprocess */
-    public Map<String, String> getEnv() { return env; }
+    public Map<String, String> getEnv() {
+        return env;
+    }
 
     /**
      * Creates a new builder for the given command.
@@ -98,7 +107,7 @@ public class AgentParameters {
         /**
          * Adds an environment variable for the subprocess.
          *
-         * @param key   the variable name
+         * @param key the variable name
          * @param value the variable value
          * @return this builder
          */

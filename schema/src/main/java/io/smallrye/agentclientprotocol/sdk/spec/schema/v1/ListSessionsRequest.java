@@ -1,11 +1,12 @@
 package io.smallrye.agentclientprotocol.sdk.spec.schema.v1;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Request parameters for listing existing sessions.
- * 
+ *
  * Only available if the Agent supports the `sessionCapabilities.list` capability.
  */
 public record ListSessionsRequest(

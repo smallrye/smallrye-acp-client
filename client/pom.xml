@@ -12,7 +12,7 @@
 
     <artifactId>acp-java-client</artifactId>
     <description>Java ACP Client - examples</description>
-    <name>AI :: Agent Client Protocol :: Java Client</name>
+    <name>Smallrye AI :: Agent Client Protocol :: Java Client</name>
 
     <properties>
         <quarkus.package.jar.type>uber-jar</quarkus.package.jar.type>
@@ -44,10 +44,35 @@
             <artifactId>acp-java-schema</artifactId>
             <version>0.1.0-SNAPSHOT</version>
         </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>net.revelc.code</groupId>
+                <artifactId>impsort-maven-plugin</artifactId>
+                <configuration>
+                    <!-- Set the level to 21 to support patterns in switch statements -->
+                    <compliance>21</compliance>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>io.quarkus</groupId>
                 <artifactId>quarkus-maven-plugin</artifactId>

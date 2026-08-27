@@ -1,8 +1,9 @@
 package io.smallrye.acp;
 
+import org.aesh.AeshRuntimeRunner;
+
 import io.quarkus.runtime.QuarkusApplication;
 import io.quarkus.runtime.annotations.QuarkusMain;
-import org.aesh.AeshRuntimeRunner;
 
 @QuarkusMain
 public class AcpMain implements QuarkusApplication {

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
  * Priority levels for plan entries.
- * 
+ *
  * Used to indicate the relative importance or urgency of different
  * tasks in the execution plan.
  * See protocol docs: [Plan Entries](https://agentclientprotocol.com/protocol/agent-plan#plan-entries)

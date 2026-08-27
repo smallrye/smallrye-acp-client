@@ -1,11 +1,12 @@
 package io.smallrye.agentclientprotocol.sdk.spec.schema.v1;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * A single entry in the execution plan.
- * 
+ *
  * Represents a task or goal that the assistant intends to accomplish
  * as part of fulfilling the user's request.
  * See protocol docs: [Plan Entries](https://agentclientprotocol.com/protocol/agent-plan#plan-entries)

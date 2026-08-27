@@ -9,17 +9,17 @@ import org.aesh.command.option.Argument;
 /**
  * Subcommand that removes a previously installed ACP agent.
  *
- * <p>Usage:
+ * <p>
+ * Usage:
+ *
  * <pre>{@code
  * acp reg remove opencode
  * }</pre>
  *
- * <p>Deletes the agent directory under {@code $HOME/.acp/agents/<agent-id>/}.
+ * <p>
+ * Deletes the agent directory under {@code $HOME/.acp/agents/<agent-id>/}.
  */
-@CommandDefinition(
-        name = "remove",
-        description = "Remove an installed ACP agent"
-)
+@CommandDefinition(name = "remove", description = "Remove an installed ACP agent")
 public class RemoveCommand implements Command<CommandInvocation> {
 
     @Argument(description = "Agent ID to remove (e.g. opencode, claude-acp)", required = true)

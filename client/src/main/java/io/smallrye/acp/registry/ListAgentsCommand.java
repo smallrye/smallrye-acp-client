@@ -1,32 +1,30 @@
 package io.smallrye.acp.registry;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.aesh.command.Command;
 import org.aesh.command.CommandDefinition;
 import org.aesh.command.CommandResult;
 import org.aesh.command.invocation.CommandInvocation;
 import org.aesh.command.option.Option;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * Subcommand that lists ACP agents -- either locally installed or from the
  * remote registry.
  *
- * <p>Usage:
+ * <p>
+ * Usage:
+ *
  * <pre>{@code
  * acp reg list              # installed agents
  * acp reg list --registry   # all agents from the remote ACP registry
  * }</pre>
  */
-@CommandDefinition(
-        name = "list",
-        description = "List ACP agents (installed or from the registry)"
-)
+@CommandDefinition(name = "list", description = "List ACP agents (installed or from the registry)")
 public class ListAgentsCommand implements Command<CommandInvocation> {
 
-    @Option(shortName = 'r', name = "registry", hasValue = false,
-            description = "List all agents from the remote ACP registry instead of installed ones")
+    @Option(shortName = 'r', name = "registry", hasValue = false, description = "List all agents from the remote ACP registry instead of installed ones")
     boolean fromRegistry;
 
     @Override
@@ -108,19 +106,23 @@ public class ListAgentsCommand implements Command<CommandInvocation> {
 
     private static String describeDistribution(AcpRegistryManager.Agent agent, String platform) {
         var dist = agent.distribution();
-        if (dist == null) return "none";
+        if (dist == null)
+            return "none";
 
         List<String> types = new ArrayList<>();
         if (dist.hasBinary()) {
             types.add(dist.binary().containsKey(platform) ? "binary" : "binary(*)");
         }
-        if (dist.hasNpx()) types.add("npx");
-        if (dist.hasUvx()) types.add("uvx");
+        if (dist.hasNpx())
+            types.add("npx");
+        if (dist.hasUvx())
+            types.add("uvx");
         return String.join(", ", types);
     }
 
     private static String truncate(String s, int maxLen) {
-        if (s == null) return "";
+        if (s == null)
+            return "";
         return s.length() <= maxLen ? s : s.substring(0, maxLen - 3) + "...";
     }
 }

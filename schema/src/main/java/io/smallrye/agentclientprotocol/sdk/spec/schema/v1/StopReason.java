@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
  * Reasons why an agent stops processing a prompt turn.
- * 
+ *
  * See protocol docs: [Stop Reasons](https://agentclientprotocol.com/protocol/prompt-turn#stop-reasons)
  */
 public enum StopReason {

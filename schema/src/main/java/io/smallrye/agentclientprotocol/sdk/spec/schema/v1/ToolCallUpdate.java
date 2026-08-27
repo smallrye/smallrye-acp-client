@@ -1,15 +1,16 @@
 package io.smallrye.agentclientprotocol.sdk.spec.schema.v1;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 /**
  * An update to an existing tool call.
- * 
+ *
  * Used to report progress and results as tools execute. All fields except
  * the tool call ID are optional - only changed fields need to be included.
- * 
+ *
  * See protocol docs: [Updating](https://agentclientprotocol.com/protocol/tool-calls#updating)
  */
 public record ToolCallUpdate(

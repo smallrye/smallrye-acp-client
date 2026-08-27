@@ -4,10 +4,10 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
  * Categories of tools that can be invoked.
- * 
+ *
  * Tool kinds help clients choose appropriate icons and optimize how they
  * display tool execution progress.
- * 
+ *
  * See protocol docs: [Creating](https://agentclientprotocol.com/protocol/tool-calls#creating)
  */
 public enum ToolKind {
