@@ -1,15 +1,5 @@
 package io.smallrye.agentclientprotocol.sdk.client;
 
-import io.smallrye.agentclientprotocol.sdk.client.transport.StdioAcpClientTransport;
-import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
-import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.Error;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -22,20 +12,34 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import io.smallrye.agentclientprotocol.sdk.client.transport.StdioAcpClientTransport;
+import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
+import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.Error;
+
 /**
  * Asynchronous ACP client.
  *
- * <p>Communicates with an ACP agent over a {@link StdioAcpClientTransport} using
+ * <p>
+ * Communicates with an ACP agent over a {@link StdioAcpClientTransport} using
  * JSON-RPC 2.0 over stdio. All protocol methods return {@link CompletableFuture}
  * for non-blocking composition.
  *
- * <p>Inbound JSON-RPC messages are routed to either:
+ * <p>
+ * Inbound JSON-RPC messages are routed to either:
  * <ul>
- *   <li>Pending request futures (responses matched by {@code id})</li>
- *   <li>The session update consumer (notifications on {@code session/update})</li>
+ * <li>Pending request futures (responses matched by {@code id})</li>
+ * <li>The session update consumer (notifications on {@code session/update})</li>
  * </ul>
  *
- * <p>Session update notifications are deserialized using a discriminator-based
+ * <p>
+ * Session update notifications are deserialized using a discriminator-based
  * routing: the {@code sessionUpdate} field in the update JSON selects the target
  * record type (e.g. {@link ContentChunk}, {@link ToolCall}, {@link Plan}).
  *
@@ -57,8 +61,7 @@ public class AcpAsyncClient {
             Map.entry("current_mode_update", CurrentModeUpdate.class),
             Map.entry("config_option_update", ConfigOptionUpdate.class),
             Map.entry("session_info_update", SessionInfoUpdate.class),
-            Map.entry("usage_update", UsageUpdate.class)
-    );
+            Map.entry("usage_update", UsageUpdate.class));
 
     private final StdioAcpClientTransport transport;
     private final ObjectMapper mapper;
@@ -76,8 +79,8 @@ public class AcpAsyncClient {
     });
 
     AcpAsyncClient(StdioAcpClientTransport transport, Duration requestTimeout,
-                   Duration promptTimeout, Consumer<SessionNotification> sessionUpdateConsumer,
-                   Function<RequestPermissionRequest, RequestPermissionResponse> permissionRequestHandler) {
+            Duration promptTimeout, Consumer<SessionNotification> sessionUpdateConsumer,
+            Function<RequestPermissionRequest, RequestPermissionResponse> permissionRequestHandler) {
         this.transport = transport;
         this.mapper = transport.getMapper();
         this.requestTimeout = requestTimeout;
@@ -135,8 +138,7 @@ public class AcpAsyncClient {
                 null,
                 new ClientCapabilities(null, new FileSystemCapabilities(null, true, true), true),
                 null,
-                1
-        ));
+                1));
     }
 
     /**

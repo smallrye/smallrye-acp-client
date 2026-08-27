@@ -1,14 +1,15 @@
 package io.smallrye.agentclientprotocol.sdk.spec.schema.v1;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 /**
  * Request parameters for loading an existing session.
- * 
+ *
  * Only available if the Agent supports the `loadSession` capability.
- * 
+ *
  * See protocol docs: [Loading Sessions](https://agentclientprotocol.com/protocol/session-setup#loading-sessions)
  */
 public record LoadSessionRequest(

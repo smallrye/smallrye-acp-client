@@ -1,17 +1,5 @@
 package io.smallrye.agentclientprotocol.sdk.client.transport;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.fasterxml.jackson.databind.ser.std.StdSerializer;
-import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.TextContent;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -24,26 +12,43 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.databind.ser.std.StdSerializer;
+
+import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.TextContent;
+
 /**
  * ACP stdio transport.
  *
- * <p>Communicates with an ACP agent subprocess using standard input/output streams.
+ * <p>
+ * Communicates with an ACP agent subprocess using standard input/output streams.
  * Messages are exchanged as newline-delimited JSON-RPC 2.0 over stdin/stdout.
  *
- * <p>Threading model:
+ * <p>
+ * Threading model:
  * <ul>
- *   <li><b>inbound</b> — daemon thread reading from the agent's stdout, dispatching
- *       parsed JSON messages to the registered {@link #setInboundMessageHandler handler}</li>
- *   <li><b>outbound</b> — daemon thread consuming a {@link LinkedBlockingQueue}
- *       and writing serialized JSON to the agent's stdin</li>
- *   <li><b>error</b> — daemon thread forwarding the agent's stderr to a configurable handler</li>
+ * <li><b>inbound</b> — daemon thread reading from the agent's stdout, dispatching
+ * parsed JSON messages to the registered {@link #setInboundMessageHandler handler}</li>
+ * <li><b>outbound</b> — daemon thread consuming a {@link LinkedBlockingQueue}
+ * and writing serialized JSON to the agent's stdin</li>
+ * <li><b>error</b> — daemon thread forwarding the agent's stderr to a configurable handler</li>
  * </ul>
  *
- * <p>The default {@link ObjectMapper} is configured with:
+ * <p>
+ * The default {@link ObjectMapper} is configured with:
  * <ul>
- *   <li>{@code FAIL_ON_UNKNOWN_PROPERTIES = false} for forward compatibility</li>
- *   <li>{@code NON_NULL} serialization to avoid sending null fields</li>
- *   <li>A custom {@link TextContent} serializer that adds the required {@code "type": "text"} discriminator</li>
+ * <li>{@code FAIL_ON_UNKNOWN_PROPERTIES = false} for forward compatibility</li>
+ * <li>{@code NON_NULL} serialization to avoid sending null fields</li>
+ * <li>A custom {@link TextContent} serializer that adds the required {@code "type": "text"} discriminator</li>
  * </ul>
  *
  * @see AgentParameters
@@ -95,7 +100,9 @@ public class StdioAcpClientTransport {
      * when serializing TextContent for the ACP protocol.
      */
     static class TextContentSerializer extends StdSerializer<TextContent> {
-        TextContentSerializer() { super(TextContent.class); }
+        TextContentSerializer() {
+            super(TextContent.class);
+        }
 
         @Override
         public void serialize(TextContent value, JsonGenerator gen, SerializerProvider provider) throws IOException {

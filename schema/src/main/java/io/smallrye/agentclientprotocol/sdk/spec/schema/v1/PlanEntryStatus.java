@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
  * Status of a plan entry in the execution flow.
- * 
+ *
  * Tracks the lifecycle of each task from planning through completion.
  * See protocol docs: [Plan Entries](https://agentclientprotocol.com/protocol/agent-plan#plan-entries)
  */

@@ -1,7 +1,5 @@
 package io.smallrye.acp.toolbox;
 
-import org.jboss.logging.Logger;
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -11,6 +9,8 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+
+import org.jboss.logging.Logger;
 
 public class GitUtil {
 
@@ -22,10 +22,10 @@ public class GitUtil {
             return false;
         }
         return skillPath.startsWith("http://")
-            || skillPath.startsWith("https://")
-            || skillPath.startsWith("git://")
-            || skillPath.startsWith("ssh://")
-            || skillPath.matches("^[\\w.-]+@[\\w.-]+:.*");
+                || skillPath.startsWith("https://")
+                || skillPath.startsWith("git://")
+                || skillPath.startsWith("ssh://")
+                || skillPath.matches("^[\\w.-]+@[\\w.-]+:.*");
     }
 
     /**
@@ -37,7 +37,8 @@ public class GitUtil {
      * @return {@code true} if this is a downloadable text file
      */
     static boolean isRawFileUrl(String url) {
-        if (url == null) return false;
+        if (url == null)
+            return false;
 
         // Send a HEAD request and check if the Content-Type header contains "text/plain"
         try {
@@ -94,14 +95,14 @@ public class GitUtil {
         try {
             var client = HttpClient.newHttpClient();
             var request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .GET()
-                .build();
+                    .uri(URI.create(url))
+                    .GET()
+                    .build();
             var response = client.send(request,
-                HttpResponse.BodyHandlers.ofFile(targetFile,
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.TRUNCATE_EXISTING,
-                    StandardOpenOption.WRITE));
+                    HttpResponse.BodyHandlers.ofFile(targetFile,
+                            StandardOpenOption.CREATE,
+                            StandardOpenOption.TRUNCATE_EXISTING,
+                            StandardOpenOption.WRITE));
             if (response.statusCode() != 200) {
                 Files.deleteIfExists(targetFile);
                 throw new IOException("HTTP " + response.statusCode() + " when fetching: " + url);
@@ -118,16 +119,18 @@ public class GitUtil {
     /**
      * Parsed components of a GitHub {@code /tree/branch/subpath} URL.
      *
-     * @param repoUrl  the repository clone URL (everything before {@code /tree/})
-     * @param branch   the branch name (segment right after {@code /tree/})
-     * @param subPath  the subdirectory path within the repo, or {@code null} if none
+     * @param repoUrl the repository clone URL (everything before {@code /tree/})
+     * @param branch the branch name (segment right after {@code /tree/})
+     * @param subPath the subdirectory path within the repo, or {@code null} if none
      */
-    record GitHubTreeUrl(String repoUrl, String branch, String subPath) {}
+    record GitHubTreeUrl(String repoUrl, String branch, String subPath) {
+    }
 
     /**
      * Attempts to parse a GitHub "tree" URL into its components.
      *
-     * <p>Example:
+     * <p>
+     * Example:
      * {@code https://github.com/org/repo/tree/main/path/to/dir}
      * → repoUrl={@code https://github.com/org/repo}, branch={@code main}, subPath={@code path/to/dir}
      *
@@ -155,12 +158,14 @@ public class GitUtil {
      * Resolves a skill URL (HTTP, Git, or SCP-style) to a local path
      * under {@code $HOME/.agents/skills/<repo-name>}.
      *
-     * <p>If the URL is a GitHub "tree" URL pointing to a subdirectory
+     * <p>
+     * If the URL is a GitHub "tree" URL pointing to a subdirectory
      * (e.g. {@code https://github.com/org/repo/tree/main/sub/dir}),
      * only the repository is cloned and the returned path points to
      * the subdirectory within the checkout.
      *
-     * <p>If the repository has already been cloned, it is pulled to get
+     * <p>
+     * If the repository has already been cloned, it is pulled to get
      * the latest changes. Otherwise, a fresh clone is performed.
      *
      * @param url the remote URL pointing to the skill repository (or a subdirectory within it)
@@ -234,11 +239,12 @@ public class GitUtil {
 
     /**
      * Extracts a short repository name from a URL.
-     * <p>Examples:
+     * <p>
+     * Examples:
      * <ul>
-     *   <li>{@code https://github.com/org/my-skill.git} → {@code my-skill}</li>
-     *   <li>{@code git@github.com:org/my-skill.git}     → {@code my-skill}</li>
-     *   <li>{@code ssh://git@host/repo}                  → {@code repo}</li>
+     * <li>{@code https://github.com/org/my-skill.git} → {@code my-skill}</li>
+     * <li>{@code git@github.com:org/my-skill.git} → {@code my-skill}</li>
+     * <li>{@code ssh://git@host/repo} → {@code repo}</li>
      * </ul>
      */
     static String extractRepoName(String url) {
@@ -271,8 +277,8 @@ public class GitUtil {
     private static void git(Path workDir, String... command) throws IOException {
         try {
             ProcessBuilder pb = new ProcessBuilder(command)
-                .directory(workDir.toFile())
-                .inheritIO();
+                    .directory(workDir.toFile())
+                    .inheritIO();
             int exitCode = pb.start().waitFor();
             if (exitCode != 0) {
                 throw new IOException("Git command failed (exit " + exitCode + "): " + String.join(" ", command));

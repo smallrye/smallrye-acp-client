@@ -1,11 +1,12 @@
 package io.smallrye.agentclientprotocol.sdk.spec.schema.v1;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Response from processing a user prompt.
- * 
+ *
  * See protocol docs: [Check for Completion](https://agentclientprotocol.com/protocol/prompt-turn#4-check-for-completion)
  */
 public record PromptResponse(

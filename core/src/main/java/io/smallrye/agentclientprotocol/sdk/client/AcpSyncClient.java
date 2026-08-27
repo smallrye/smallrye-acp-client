@@ -1,22 +1,26 @@
 package io.smallrye.agentclientprotocol.sdk.client;
 
-import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
+
 /**
  * Synchronous ACP client that wraps {@link AcpAsyncClient} with blocking calls.
  *
- * <p>Implements {@link AutoCloseable} for use with try-with-resources.
+ * <p>
+ * Implements {@link AutoCloseable} for use with try-with-resources.
  * The constructor eagerly connects to the agent process and blocks until ready.
  *
- * <p>Example usage:
+ * <p>
+ * Example usage:
+ *
  * <pre>{@code
  * try (AcpSyncClient client = AcpClient.sync(transport)
  *         .sessionUpdateConsumer(n -> handleUpdate(n.update()))

@@ -1,8 +1,9 @@
 package io.smallrye.agentclientprotocol.sdk.spec.schema.v1;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Response from resuming an existing session.

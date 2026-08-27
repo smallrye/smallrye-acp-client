@@ -8,7 +8,9 @@ import org.aesh.command.invocation.CommandInvocation;
 /**
  * Parent subcommand grouping ACP registry operations.
  *
- * <p>Usage:
+ * <p>
+ * Usage:
+ *
  * <pre>{@code
  * acp reg list                # installed agents
  * acp reg list --registry     # remote registry
@@ -16,11 +18,8 @@ import org.aesh.command.invocation.CommandInvocation;
  * acp reg remove opencode     # remove an installed agent
  * }</pre>
  */
-@CommandDefinition(
-        name = "reg",
-        description = "Manage ACP agents via the registry (list, install, remove)",
-        groupCommands = {ListAgentsCommand.class, InstallCommand.class, RemoveCommand.class}
-)
+@CommandDefinition(name = "reg", description = "Manage ACP agents via the registry (list, install, remove)", groupCommands = {
+        ListAgentsCommand.class, InstallCommand.class, RemoveCommand.class })
 public class RegistryCommand implements Command<CommandInvocation> {
 
     @Override

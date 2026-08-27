@@ -1,22 +1,5 @@
 package io.smallrye.acp;
 
-import io.smallrye.acp.toolbox.GitUtil;
-import io.smallrye.acp.toolbox.ProjectUtil;
-import io.smallrye.acp.registry.AcpRegistryManager;
-import io.smallrye.acp.registry.RegistryCommand;
-import io.smallrye.agentclientprotocol.sdk.client.AcpClient;
-import io.smallrye.agentclientprotocol.sdk.client.AcpSyncClient;
-import io.smallrye.agentclientprotocol.sdk.client.transport.AgentParameters;
-import io.smallrye.agentclientprotocol.sdk.client.transport.StdioAcpClientTransport;
-import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
-import org.aesh.command.CommandDefinition;
-import org.jboss.logging.Logger;
-
-import org.aesh.command.Command;
-import org.aesh.command.CommandResult;
-import org.aesh.command.invocation.CommandInvocation;
-import org.aesh.command.option.Option;
-
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -24,17 +7,38 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 
+import org.aesh.command.Command;
+import org.aesh.command.CommandDefinition;
+import org.aesh.command.CommandResult;
+import org.aesh.command.invocation.CommandInvocation;
+import org.aesh.command.option.Option;
+import org.jboss.logging.Logger;
+
+import io.smallrye.acp.registry.AcpRegistryManager;
+import io.smallrye.acp.registry.RegistryCommand;
+import io.smallrye.acp.toolbox.GitUtil;
+import io.smallrye.acp.toolbox.ProjectUtil;
+import io.smallrye.agentclientprotocol.sdk.client.AcpClient;
+import io.smallrye.agentclientprotocol.sdk.client.AcpSyncClient;
+import io.smallrye.agentclientprotocol.sdk.client.transport.AgentParameters;
+import io.smallrye.agentclientprotocol.sdk.client.transport.StdioAcpClientTransport;
+import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
+
 /**
  * Aesh CLI command for any ACP-compatible agent (OpenCode, Claude, Pi, Gemini, etc.).
  *
- * <p>Connects to an ACP agent over stdio, initializes a session,
+ * <p>
+ * Connects to an ACP agent over stdio, initializes a session,
  * sends a prompt, and streams session updates (thoughts, messages, tool calls, plans)
  * to the console.
  *
- * <p>Each option can also be set via an environment variable (shown in brackets).
+ * <p>
+ * Each option can also be set via an environment variable (shown in brackets).
  * Precedence: CLI argument &gt; environment variable &gt; default value.
  *
- * <p>Usage:
+ * <p>
+ * Usage:
+ *
  * <pre>{@code
  * # Using a known agent (resolves binary and args automatically)
  * acp --agent claude-acp --provider vertex-ai --model claude-opus-4-6 --prompt "Say hello"
@@ -43,12 +47,8 @@ import java.util.logging.Level;
  * acp --agent-binary my-agent --agent-args "serve" --prompt "Say hello"
  * }</pre>
  */
-@CommandDefinition(
-        name = "acp",
-        description = "acp tool for any acp compatible agent (OpenCode, Claude, Pi, Gemini, etc.)",
-        generateHelp = true,
-        groupCommands = {RegistryCommand.class}
-)
+@CommandDefinition(name = "acp", description = "acp tool for any acp compatible agent (OpenCode, Claude, Pi, Gemini, etc.)", generateHelp = true, groupCommands = {
+        RegistryCommand.class })
 public class AcpCommand implements Command<CommandInvocation> {
 
     private static final Logger logger = Logger.getLogger(AcpCommand.class);
@@ -64,12 +64,13 @@ public class AcpCommand implements Command<CommandInvocation> {
     // Key format: "agent-id:provider". Checked before launching the agent.
 
     private static final Map<String, List<String>> PROVIDER_ENV_VARS = Map.ofEntries(
-            Map.entry("opencode:zen",       List.of()),
-            Map.entry("opencode:vertex-ai", List.of("GOOGLE_APPLICATION_CREDENTIALS", "VERTEX_LOCATION", "GOOGLE_CLOUD_PROJECT")),
-            Map.entry("claude-acp:vertex-ai",   List.of("ANTHROPIC_VERTEX_PROJECT_ID", "CLAUDE_CODE_USE_VERTEX", "CLOUD_ML_REGION")),
-            Map.entry("pi-acp:vertex-ai",       List.of("GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT", "CLOUD_ML_REGION")),
-            Map.entry("gemini:vertex-ai",   List.of("GOOGLE_CLOUD_PROJECT"))
-    );
+            Map.entry("opencode:zen", List.of()),
+            Map.entry("opencode:vertex-ai",
+                    List.of("GOOGLE_APPLICATION_CREDENTIALS", "VERTEX_LOCATION", "GOOGLE_CLOUD_PROJECT")),
+            Map.entry("claude-acp:vertex-ai",
+                    List.of("ANTHROPIC_VERTEX_PROJECT_ID", "CLAUDE_CODE_USE_VERTEX", "CLOUD_ML_REGION")),
+            Map.entry("pi-acp:vertex-ai", List.of("GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT", "CLOUD_ML_REGION")),
+            Map.entry("gemini:vertex-ai", List.of("GOOGLE_CLOUD_PROJECT")));
 
     // -- Instance state ----
 
@@ -78,61 +79,46 @@ public class AcpCommand implements Command<CommandInvocation> {
 
     // -- CLI options ----
 
-    @Option(shortName = 'a', name = "agent",
-            description = "ACP agent registry ID: opencode, claude-acp, pi-acp, gemini, ... (use 'acp reg list --registry' to see all) [env: ACP_AGENT]")
+    @Option(shortName = 'a', name = "agent", description = "ACP agent registry ID: opencode, claude-acp, pi-acp, gemini, ... (use 'acp reg list --registry' to see all) [env: ACP_AGENT]")
     String agent;
 
-    @Option(name = "agent-binary",
-            description = "Override agent binary path (for custom agents) [env: ACP_AGENT_BINARY]")
+    @Option(name = "agent-binary", description = "Override agent binary path (for custom agents) [env: ACP_AGENT_BINARY]")
     String acpAgentBinary;
 
-    @Option(name = "agent-args",
-            description = "Override agent arguments (for custom agents) [env: ACP_AGENT_ARGS]")
+    @Option(name = "agent-args", description = "Override agent arguments (for custom agents) [env: ACP_AGENT_ARGS]")
     String acpAgentArgs;
 
-    @Option(shortName = 'p', name = "prompt",
-            description = "The prompt text to send to the agent [env: ACP_PROMPT]")
+    @Option(shortName = 'p', name = "prompt", description = "The prompt text to send to the agent [env: ACP_PROMPT]")
     String prompt;
 
-    @Option(shortName = 'm', name = "model",
-            description = "The model to use, e.g. claude-opus-4-6 (resolved per agent/provider) [env: ACP_MODEL]")
+    @Option(shortName = 'm', name = "model", description = "The model to use, e.g. claude-opus-4-6 (resolved per agent/provider) [env: ACP_MODEL]")
     String model;
 
-    @Option(name = "provider",
-            description = "Provider: zen, vertex-ai [env: ACP_PROVIDER]")
+    @Option(name = "provider", description = "Provider: zen, vertex-ai [env: ACP_PROVIDER]")
     String provider;
 
-    @Option(name = "request-timeout",
-            description = "Timeout in seconds for requests (initialize, create session, etc.) [env: ACP_REQUEST_TIMEOUT]")
+    @Option(name = "request-timeout", description = "Timeout in seconds for requests (initialize, create session, etc.) [env: ACP_REQUEST_TIMEOUT]")
     Integer requestTimeout;
 
-    @Option(name = "prompt-timeout",
-            description = "Timeout in seconds for prompt requests; 0 means no timeout [env: ACP_PROMPT_TIMEOUT]")
+    @Option(name = "prompt-timeout", description = "Timeout in seconds for prompt requests; 0 means no timeout [env: ACP_PROMPT_TIMEOUT]")
     Integer promptTimeout;
 
-    @Option(name = "permission-mode",
-            description = "How to respond to agent permission requests: allow_always, allow_once, reject_once, reject_always [env: ACP_PERMISSION_MODE]")
+    @Option(name = "permission-mode", description = "How to respond to agent permission requests: allow_always, allow_once, reject_once, reject_always [env: ACP_PERMISSION_MODE]")
     String permissionMode;
 
-    @Option(shortName = 'b', name = "backup",
-            description = "Backup workspace to target/workdirs before running: yes, no (default: yes). Only applies to Maven/Gradle projects [env: ACP_BACKUP]")
+    @Option(shortName = 'b', name = "backup", description = "Backup workspace to target/workdirs before running: yes, no (default: yes). Only applies to Maven/Gradle projects [env: ACP_BACKUP]")
     String backup;
 
-    @Option(name = "backup-project-name",
-            description = "Name of the project used in the backup directory: target/workdirs/<name>_<timestamp> (default: current directory name) [env: ACP_BACKUP_PROJECT_NAME]")
+    @Option(name = "backup-project-name", description = "Name of the project used in the backup directory: target/workdirs/<name>_<timestamp> (default: current directory name) [env: ACP_BACKUP_PROJECT_NAME]")
     String backupProjectName;
 
-    @Option(aliases = "wks",
-            name = "workspace-path",
-            description = "Absolute path to the project/workspace directory used as CWD for the session. If not set, defaults to the directory where the command is executed [env: WORKSPACE_PATH]")
+    @Option(aliases = "wks", name = "workspace-path", description = "Absolute path to the project/workspace directory used as CWD for the session. If not set, defaults to the directory where the command is executed [env: WORKSPACE_PATH]")
     String workspacePath;
 
-    @Option(shortName = 's', name = "skill-path",
-            description = "Absolute path to a skills folder to add as additional directory [env: SKILL_PATH]")
+    @Option(shortName = 's', name = "skill-path", description = "Absolute path to a skills folder to add as additional directory [env: SKILL_PATH]")
     String skillPath;
 
-    @Option(shortName = 'l', name = "log-level",
-            description = "Log level: INFO, DEBUG, TRACE, WARNING, SEVERE [env: ACP_LOG_LEVEL]")
+    @Option(shortName = 'l', name = "log-level", description = "Log level: INFO, DEBUG, TRACE, WARNING, SEVERE [env: ACP_LOG_LEVEL]")
     String logLevel;
 
     @Override
@@ -255,7 +241,8 @@ public class AcpCommand implements Command<CommandInvocation> {
                 .promptTimeout(pTimeout)
                 .sessionUpdateConsumer(notification -> {
                     String updateType = notification.meta() != null
-                            ? (String) notification.meta().get("sessionUpdate") : null;
+                            ? (String) notification.meta().get("sessionUpdate")
+                            : null;
                     handleSessionUpdate(updateType, notification.update());
                 })
                 .permissionRequestHandler(request -> handlePermissionRequest(request, permMode))
@@ -331,8 +318,7 @@ public class AcpCommand implements Command<CommandInvocation> {
             invocation.println("Here is the AI response:");
             var response = client.prompt(new PromptRequest(
                     List.of(new TextContent(effectivePrompt)),
-                    sessionId
-            ));
+                    sessionId));
 
             flushThoughts();
             if (messageOutputPending) {
@@ -356,10 +342,11 @@ public class AcpCommand implements Command<CommandInvocation> {
 
     private static String normalizeProvider(String provider) {
         return switch (provider) {
-            case "opencode-zen","zen"      -> "zen";
-            case "vertex-ai","google-vertex-ai",
-                 "anthropic-vertex-ai" -> "vertex-ai";
-            default                  -> provider;
+            case "opencode-zen", "zen" -> "zen";
+            case "vertex-ai", "google-vertex-ai",
+                    "anthropic-vertex-ai" ->
+                "vertex-ai";
+            default -> provider;
         };
     }
 
@@ -428,7 +415,7 @@ public class AcpCommand implements Command<CommandInvocation> {
             }
             case CurrentModeUpdate mode -> logger.infof("[Mode] %s", mode.currentModeId());
             default -> {
-                if ("usage_update".equals(updateType) && update instanceof Map<?,?> map) {
+                if ("usage_update".equals(updateType) && update instanceof Map<?, ?> map) {
                     logger.infof("[Usage] used=%s size=%s cost=%s", map.get("used"), map.get("size"), map.get("cost"));
                 } else {
                     logger.infof("[Update] %s: %s", updateType, update);
@@ -445,7 +432,7 @@ public class AcpCommand implements Command<CommandInvocation> {
     }
 
     private static String extractText(Object content) {
-        if (content instanceof Map<?,?> map) {
+        if (content instanceof Map<?, ?> map) {
             Object text = map.get("text");
             return text != null ? text.toString() : content.toString();
         }

@@ -1,7 +1,8 @@
 package io.smallrye.agentclientprotocol.sdk.spec.schema.v1;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * All text that was typed after the command name is provided as input.

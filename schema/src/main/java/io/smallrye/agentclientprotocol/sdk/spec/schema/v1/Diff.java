@@ -1,13 +1,14 @@
 package io.smallrye.agentclientprotocol.sdk.spec.schema.v1;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * A diff representing file modifications.
- * 
+ *
  * Shows changes to files in a format suitable for display in the client UI.
- * 
+ *
  * See protocol docs: [Content](https://agentclientprotocol.com/protocol/tool-calls#content)
  */
 public record Diff(

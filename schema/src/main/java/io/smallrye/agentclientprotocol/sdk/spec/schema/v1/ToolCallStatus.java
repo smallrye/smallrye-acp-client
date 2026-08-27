@@ -4,9 +4,9 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
  * Execution status of a tool call.
- * 
+ *
  * Tool calls progress through different statuses during their lifecycle.
- * 
+ *
  * See protocol docs: [Status](https://agentclientprotocol.com/protocol/tool-calls#status)
  */
 public enum ToolCallStatus {

@@ -12,7 +12,7 @@
 
     <artifactId>acp-java-schema</artifactId>
     <description>Java ACP Schema and class/Record generator</description>
-    <name>AI :: Agent Client Protocol :: Schema - Java Generator</name>
+    <name>Smallrye AI :: Agent Client Protocol :: Schema - Java Generator</name>
 
     <dependencies>
         <!-- Jackson for @JsonProperty / @JsonValue annotations in generated classes -->

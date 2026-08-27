@@ -1,13 +1,14 @@
 package io.smallrye.agentclientprotocol.sdk.spec.schema.v1;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Request parameters for the initialize method.
- * 
+ *
  * Sent by the client to establish connection and negotiate capabilities.
- * 
+ *
  * See protocol docs: [Initialization](https://agentclientprotocol.com/protocol/initialization)
  */
 public record InitializeRequest(

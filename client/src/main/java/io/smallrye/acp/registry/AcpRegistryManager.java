@@ -1,11 +1,5 @@
 package io.smallrye.acp.registry;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.jboss.logging.Logger;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -25,21 +19,27 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import org.jboss.logging.Logger;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Manages the ACP agent registry: fetching, caching, installing and resolving agents.
  *
- * <p>Agents are installed under {@code $HOME/.acp/agents/<agent-id>/}.
+ * <p>
+ * Agents are installed under {@code $HOME/.acp/agents/<agent-id>/}.
  * A cached copy of the remote registry is kept at {@code $HOME/.acp/registry.json}.
  */
 public class AcpRegistryManager {
 
     private static final Logger logger = Logger.getLogger(AcpRegistryManager.class);
 
-    public static final String REGISTRY_URL =
-            "https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json";
+    public static final String REGISTRY_URL = "https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json";
 
     public static final Path ACP_HOME = Path.of(System.getProperty("user.home"), ".acp");
     public static final Path AGENTS_DIR = ACP_HOME.resolve("agents");
@@ -51,7 +51,8 @@ public class AcpRegistryManager {
     // ── Model records ───────────────────────────────────────────────────────
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Registry(String version, List<Agent> agents) {}
+    public record Registry(String version, List<Agent> agents) {
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Agent(
@@ -64,40 +65,47 @@ public class AcpRegistryManager {
             List<String> authors,
             String license,
             String icon,
-            Distribution distribution
-    ) {}
+            Distribution distribution) {
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Distribution(
             NpxInfo npx,
             UvxInfo uvx,
-            Map<String, PlatformBinary> binary
-    ) {
-        public boolean hasBinary() { return binary != null && !binary.isEmpty(); }
-        public boolean hasNpx()    { return npx != null && npx.packageName() != null; }
-        public boolean hasUvx()    { return uvx != null && uvx.packageName() != null; }
+            Map<String, PlatformBinary> binary) {
+        public boolean hasBinary() {
+            return binary != null && !binary.isEmpty();
+        }
+
+        public boolean hasNpx() {
+            return npx != null && npx.packageName() != null;
+        }
+
+        public boolean hasUvx() {
+            return uvx != null && uvx.packageName() != null;
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record NpxInfo(
             @JsonProperty("package") String packageName,
             List<String> args,
-            Map<String, String> env
-    ) {}
+            Map<String, String> env) {
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record UvxInfo(
             @JsonProperty("package") String packageName,
-            List<String> args
-    ) {}
+            List<String> args) {
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record PlatformBinary(
             String archive,
             String cmd,
             List<String> args,
-            Map<String, String> env
-    ) {}
+            Map<String, String> env) {
+    }
 
     /**
      * Metadata persisted at {@code $HOME/.acp/agents/<id>/agent.json}
@@ -109,16 +117,17 @@ public class AcpRegistryManager {
             String name,
             String version,
             String platform,
-            String distributionType,   // "binary", "npx", "uvx"
-            String cmd,                // absolute binary path, or "npx" / "uvx"
+            String distributionType, // "binary", "npx", "uvx"
+            String cmd, // absolute binary path, or "npx" / "uvx"
             List<String> args,
             String npxPackage,
             String uvxPackage,
-            String installedAt
-    ) {}
+            String installedAt) {
+    }
 
     /** Resolved command ready to be passed to {@code AgentParameters}. */
-    public record AgentCommand(String binary, List<String> args) {}
+    public record AgentCommand(String binary, List<String> args) {
+    }
 
     // ── Registry operations ─────────────────────────────────────────────────
 
@@ -176,7 +185,8 @@ public class AcpRegistryManager {
      * Finds an agent by ID in the given registry.
      */
     public Agent findAgent(Registry registry, String agentId) {
-        if (registry == null || registry.agents() == null) return null;
+        if (registry == null || registry.agents() == null)
+            return null;
         return registry.agents().stream()
                 .filter(a -> a.id().equals(agentId))
                 .findFirst()
@@ -189,7 +199,7 @@ public class AcpRegistryManager {
      * Detects the current platform key (e.g. {@code darwin-aarch64}, {@code linux-x86_64}).
      */
     public static String detectPlatform() {
-        String os   = System.getProperty("os.name").toLowerCase();
+        String os = System.getProperty("os.name").toLowerCase();
         String arch = System.getProperty("os.arch").toLowerCase();
 
         String osKey;
@@ -221,7 +231,7 @@ public class AcpRegistryManager {
      * Installs (or reinstalls) an agent from the remote ACP registry.
      *
      * @param agentId the registry agent ID (e.g. {@code opencode}, {@code claude-acp})
-     * @param force   if {@code true}, reinstall even if already present
+     * @param force if {@code true}, reinstall even if already present
      */
     public void installAgent(String agentId, boolean force) throws IOException, InterruptedException {
         Registry registry = fetchRegistry();
@@ -284,7 +294,7 @@ public class AcpRegistryManager {
     }
 
     private void installBinaryAgent(Agent agent, PlatformBinary platformBinary,
-                                    String platform, Path agentDir)
+            String platform, Path agentDir)
             throws IOException, InterruptedException {
 
         String archiveUrl = platformBinary.archive();
@@ -335,8 +345,7 @@ public class AcpRegistryManager {
                 "binary",
                 agentDir.resolve(cmd).toAbsolutePath().toString(),
                 args, null, null,
-                LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-        );
+                LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         saveInstalledAgent(agent.id(), installed);
 
         System.out.println("  Installed '" + agent.id() + "' v" + agent.version());
@@ -381,8 +390,7 @@ public class AcpRegistryManager {
                 "npx",
                 binPath.toAbsolutePath().toString(),
                 args, packageName, null,
-                LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-        );
+                LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         saveInstalledAgent(agent.id(), installed);
 
         System.out.println("  Installed '" + agent.id() + "' v" + agent.version());
@@ -437,8 +445,7 @@ public class AcpRegistryManager {
                 "uvx",
                 binPath.toAbsolutePath().toString(),
                 args, null, packageName,
-                LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-        );
+                LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         saveInstalledAgent(agent.id(), installed);
 
         System.out.println("  Installed '" + agent.id() + "' v" + agent.version());
@@ -448,9 +455,9 @@ public class AcpRegistryManager {
     /**
      * Extracts a binary name from a package specifier.
      * <ul>
-     *   <li>{@code @agentclientprotocol/claude-agent-acp@0.37.0} &rarr; {@code claude-agent-acp}</li>
-     *   <li>{@code pi-acp@0.0.27} &rarr; {@code pi-acp}</li>
-     *   <li>{@code fast-agent-acp==0.7.12} &rarr; {@code fast-agent-acp}</li>
+     * <li>{@code @agentclientprotocol/claude-agent-acp@0.37.0} &rarr; {@code claude-agent-acp}</li>
+     * <li>{@code pi-acp@0.0.27} &rarr; {@code pi-acp}</li>
+     * <li>{@code fast-agent-acp==0.7.12} &rarr; {@code fast-agent-acp}</li>
      * </ul>
      */
     private static String resolveBinName(String packageSpec) {
@@ -569,7 +576,8 @@ public class AcpRegistryManager {
         try (Stream<Path> dirs = Files.list(AGENTS_DIR)) {
             dirs.filter(Files::isDirectory).forEach(dir -> {
                 InstalledAgent a = getInstalledAgent(dir.getFileName().toString());
-                if (a != null) result.add(a);
+                if (a != null)
+                    result.add(a);
             });
         } catch (IOException e) {
             logger.warnf("Failed to list installed agents: %s", e.getMessage());
@@ -645,10 +653,14 @@ public class AcpRegistryManager {
     }
 
     private void deleteDirectory(Path dir) throws IOException {
-        if (!Files.exists(dir)) return;
+        if (!Files.exists(dir))
+            return;
         try (Stream<Path> walk = Files.walk(dir)) {
             walk.sorted(Comparator.reverseOrder()).forEach(p -> {
-                try { Files.delete(p); } catch (IOException ignored) {}
+                try {
+                    Files.delete(p);
+                } catch (IOException ignored) {
+                }
             });
         }
     }

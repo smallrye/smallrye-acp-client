@@ -1,23 +1,25 @@
 package io.smallrye.agentclientprotocol.sdk.client;
 
+import java.time.Duration;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
 import io.smallrye.agentclientprotocol.sdk.client.transport.StdioAcpClientTransport;
 import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.RequestPermissionRequest;
 import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.RequestPermissionResponse;
 import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.SessionNotification;
 
-import java.time.Duration;
-import java.util.function.Consumer;
-import java.util.function.Function;
-
 /**
  * Factory for creating ACP clients.
  *
- * <p>Use {@link #sync(StdioAcpClientTransport)} for blocking operations
+ * <p>
+ * Use {@link #sync(StdioAcpClientTransport)} for blocking operations
  * or {@link #async(StdioAcpClientTransport)} for non-blocking Uni-based operations.
  */
 public final class AcpClient {
 
-    private AcpClient() {}
+    private AcpClient() {
+    }
 
     /**
      * Creates a builder for a synchronous (blocking) ACP client.
@@ -103,7 +105,8 @@ public final class AcpClient {
          * @return a connected {@link AcpSyncClient}
          */
         public AcpSyncClient build() {
-            AcpAsyncClient async = new AcpAsyncClient(transport, requestTimeout, promptTimeout, sessionUpdateConsumer, permissionRequestHandler);
+            AcpAsyncClient async = new AcpAsyncClient(transport, requestTimeout, promptTimeout, sessionUpdateConsumer,
+                    permissionRequestHandler);
             return new AcpSyncClient(async);
         }
     }
@@ -150,7 +153,8 @@ public final class AcpClient {
          * @return an {@link AcpAsyncClient} (not yet connected)
          */
         public AcpAsyncClient build() {
-            return new AcpAsyncClient(transport, requestTimeout, promptTimeout, sessionUpdateConsumer, permissionRequestHandler);
+            return new AcpAsyncClient(transport, requestTimeout, promptTimeout, sessionUpdateConsumer,
+                    permissionRequestHandler);
         }
     }
 }

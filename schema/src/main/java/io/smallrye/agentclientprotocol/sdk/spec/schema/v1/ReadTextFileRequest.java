@@ -1,11 +1,12 @@
 package io.smallrye.agentclientprotocol.sdk.spec.schema.v1;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Request to read content from a text file.
- * 
+ *
  * Only available if the client supports the `fs.readTextFile` capability.
  */
 public record ReadTextFileRequest(
