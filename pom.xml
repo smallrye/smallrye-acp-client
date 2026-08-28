@@ -10,7 +10,7 @@
 
     <groupId>io.smallrye.ai</groupId>
     <artifactId>acp-java-parent</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.1-SNAPSHOT</version>
     <packaging>pom</packaging>
     <description>Smallrye Agent Client Protocol - Java project</description>
     <name>Smallrye AI :: Agent Client Protocol :: Java SDK :: Parent</name>
@@ -45,7 +45,7 @@
         <connection>scm:git:git@github.com:smallrye/smallrye-acp-client.git</connection>
         <developerConnection>scm:git:git@github.com:smallrye/smallrye-acp-client.git</developerConnection>
         <url>https://github.com/smallrye/smallrye-acp-client.git</url>
-        <tag>0.1.0</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <modules>
