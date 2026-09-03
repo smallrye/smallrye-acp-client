@@ -30,21 +30,24 @@ Compile the project and build the uber-jar:
 mvn clean install
 ```
 
-The uber-jar is produced at `client/target/acp-java-client-0.1.0-SNAPSHOT-runner.jar`.
-
 ## Usage
 
-### Running with `java -jar`
+### Running with `java -jar` build
 
+Export in your terminal the current version from the project's cloned
+```shell
+export VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+```
+Next, execute one of the following commands
 ```shell
 # Default prompt: "Say Hello" with OpenCode agent
-java -jar client/target/acp-java-client-0.1.0-SNAPSHOT-runner.jar
+java -jar client/target/acp-java-client-${VERSION}-runner.jar
 
 # Custom prompt
-java -jar client/target/acp-java-client-0.1.0-SNAPSHOT-runner.jar --prompt "What is 6+6?"
+java -jar client/target/acp-java-client-${VERSION}-runner.jar --prompt "What is 6+6?"
 
 # With a specific agent, provider, and model
-java -jar client/target/acp-java-client-0.1.0-SNAPSHOT-runner.jar \
+java -jar client/target/acp-java-client-${VERSION}-runner.jar \
   --agent claude \
   --provider vertex-ai \
   --model claude-opus-4-6 \
@@ -60,9 +63,9 @@ A [JBang catalog](https://www.jbang.dev/documentation/guide/latest/alias_catalog
 jbang acp --prompt "What is 6+6?"
 ```
 
-If you plan to use the tool outside of this project, then install it using the maven GAV
+If you plan to use the tool outside of this project, then install it using the maven GAV and with a released version !
 ```shell
-jbang app install --name acp io.smallrye.ai:acp-java-client:0.1.0-SNAPSHOT:runner
+jbang app install --name acp io.smallrye.ai:acp-java-client:0.1.0:runner
 
 cd /java/project/to/code/using/ai
 acp --prompt "Say hello"
@@ -187,7 +190,7 @@ When an agent needs to perform a sensitive operation (e.g. writing a file, runni
 
 Example:
 ```shell
-java -jar client/target/acp-java-client-0.1.0-SNAPSHOT-runner.jar \
+java -jar client/target/acp-java-client-${VERSION}-runner.jar \
   --permission-mode allow_once \
   --prompt "Create a Java HelloWorld class"
 ```
@@ -246,12 +249,12 @@ Log levels are configured in `client/src/main/resources/application.properties`.
 ```shell
 # Enable debug logging
 java -Dquarkus.log.category.\"io.smallrye\".level=DEBUG \
-  -jar client/target/acp-java-client-0.1.0-SNAPSHOT-runner.jar \
+  -jar client/target/acp-java-client-${VERSION}-runner.jar \
   --prompt "Say Hello"
 
 # Enable trace logging (raw JSON-RPC messages)
 java -Dquarkus.log.category.\"io.smallrye\".level=TRACE \
-  -jar client/target/acp-java-client-0.1.0-SNAPSHOT-runner.jar \
+  -jar client/target/acp-java-client-${VERSION}-runner.jar \
   --prompt "Say Hello"
 ```
 
