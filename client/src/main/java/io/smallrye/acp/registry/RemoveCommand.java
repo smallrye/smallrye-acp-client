@@ -6,6 +6,8 @@ import org.aesh.command.CommandResult;
 import org.aesh.command.invocation.CommandInvocation;
 import org.aesh.command.option.Argument;
 
+import io.smallrye.agentclientprotocol.sdk.registry.AcpRegistryManager;
+
 /**
  * Subcommand that removes a previously installed ACP agent.
  *
@@ -28,7 +30,7 @@ public class RemoveCommand implements Command<CommandInvocation> {
     @Override
     public CommandResult execute(CommandInvocation invocation) {
         try {
-            var manager = new AcpRegistryManager();
+            var manager = new AcpRegistryManager(new AeshOutputHandler(invocation));
             manager.removeAgent(agentId);
             return CommandResult.SUCCESS;
         } catch (Exception e) {

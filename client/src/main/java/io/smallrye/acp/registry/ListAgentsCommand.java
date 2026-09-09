@@ -9,6 +9,10 @@ import org.aesh.command.CommandResult;
 import org.aesh.command.invocation.CommandInvocation;
 import org.aesh.command.option.Option;
 
+import io.smallrye.agentclientprotocol.sdk.registry.AcpRegistryManager;
+import io.smallrye.agentclientprotocol.sdk.registry.RegistryUtils;
+import io.smallrye.agentclientprotocol.sdk.registry.model.Agent;
+
 /**
  * Subcommand that lists ACP agents -- either locally installed or from the
  * remote registry.
@@ -29,7 +33,7 @@ public class ListAgentsCommand implements Command<CommandInvocation> {
 
     @Override
     public CommandResult execute(CommandInvocation invocation) {
-        var manager = new AcpRegistryManager();
+        var manager = new AcpRegistryManager(new AeshOutputHandler(invocation));
         try {
             if (fromRegistry) {
                 listRegistryAgents(manager, invocation);
@@ -47,7 +51,7 @@ public class ListAgentsCommand implements Command<CommandInvocation> {
 
     private void listRegistryAgents(AcpRegistryManager manager, CommandInvocation invocation) throws Exception {
         var registry = manager.fetchRegistry();
-        String platform = AcpRegistryManager.detectPlatform();
+        String platform = RegistryUtils.detectPlatform();
 
         invocation.println("ACP Registry v" + registry.version()
                 + " - " + registry.agents().size() + " agents available");
@@ -104,7 +108,7 @@ public class ListAgentsCommand implements Command<CommandInvocation> {
 
     // -- Helpers ----
 
-    private static String describeDistribution(AcpRegistryManager.Agent agent, String platform) {
+    private static String describeDistribution(Agent agent, String platform) {
         var dist = agent.distribution();
         if (dist == null)
             return "none";
