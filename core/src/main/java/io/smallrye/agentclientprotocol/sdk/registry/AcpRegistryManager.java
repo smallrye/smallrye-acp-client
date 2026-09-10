@@ -14,8 +14,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,7 +37,7 @@ import io.smallrye.agentclientprotocol.sdk.registry.model.UvxInfo;
  */
 public class AcpRegistryManager {
 
-    private static final Logger logger = LoggerFactory.getLogger(AcpRegistryManager.class);
+    private static final Logger logger = Logger.getLogger(AcpRegistryManager.class);
 
     public static final String REGISTRY_URL = "https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json";
 
@@ -80,7 +79,7 @@ public class AcpRegistryManager {
         String json = response.body();
         Files.createDirectories(ACP_HOME);
         Files.writeString(REGISTRY_CACHE, json);
-        logger.info("Registry cached at {}", REGISTRY_CACHE);
+        logger.infof("Registry cached at %s", REGISTRY_CACHE);
 
         return MAPPER.readValue(json, Registry.class);
     }
@@ -92,7 +91,7 @@ public class AcpRegistryManager {
         try {
             return MAPPER.readValue(REGISTRY_CACHE.toFile(), Registry.class);
         } catch (IOException e) {
-            logger.warn("Failed to read cached registry: {}", e.getMessage());
+            logger.warnf("Failed to read cached registry: %s", e.getMessage());
             return null;
         }
     }
@@ -155,7 +154,7 @@ public class AcpRegistryManager {
                 installBinaryAgent(agent, platformBinary, platform, agentDir);
                 return;
             }
-            logger.warn("No binary for platform '{}'. Checking npx/uvx fallback...", platform);
+            logger.warnf("No binary for platform '%s'. Checking npx/uvx fallback...", platform);
         }
 
         if (dist.hasNpx()) {
@@ -196,7 +195,7 @@ public class AcpRegistryManager {
         RegistryUtils.makeExecutable(binaryPath);
 
         if (!Files.exists(binaryPath)) {
-            logger.warn("Expected binary not found at {} — searching...", binaryPath);
+            logger.warnf("Expected binary not found at %s — searching...", binaryPath);
             String cmdName = Path.of(cmd).getFileName().toString();
             try (Stream<Path> walk = Files.walk(agentDir)) {
                 Optional<Path> found = walk
@@ -328,7 +327,7 @@ public class AcpRegistryManager {
         try {
             return MAPPER.readValue(metadataFile.toFile(), InstalledAgent.class);
         } catch (IOException e) {
-            logger.warn("Failed to read metadata for '{}': {}", agentId, e.getMessage());
+            logger.warnf("Failed to read metadata for '%s': %s", agentId, e.getMessage());
             return null;
         }
     }
@@ -345,7 +344,7 @@ public class AcpRegistryManager {
                     result.add(a);
             });
         } catch (IOException e) {
-            logger.warn("Failed to list installed agents: {}", e.getMessage());
+            logger.warnf("Failed to list installed agents: %s", e.getMessage());
         }
         return result;
     }

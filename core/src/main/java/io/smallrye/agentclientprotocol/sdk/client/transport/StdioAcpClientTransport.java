@@ -12,8 +12,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -55,7 +54,7 @@ import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.TextContent;
  */
 public class StdioAcpClientTransport {
 
-    private static final Logger logger = LoggerFactory.getLogger(StdioAcpClientTransport.class);
+    private static final Logger logger = Logger.getLogger(StdioAcpClientTransport.class);
 
     private final AgentParameters params;
     private final ObjectMapper mapper;
@@ -71,7 +70,7 @@ public class StdioAcpClientTransport {
     private final ExecutorService outboundExecutor;
     private final ExecutorService errorExecutor;
 
-    private Consumer<String> stdErrorHandler = error -> logger.info("STDERR: {}", error);
+    private Consumer<String> stdErrorHandler = error -> logger.infof("STDERR: %s", error);
     private Consumer<JsonNode> inboundMessageHandler;
 
     /**
@@ -209,14 +208,14 @@ public class StdioAcpClientTransport {
                 String line;
                 while (!isClosing && (line = reader.readLine()) != null) {
                     try {
-                        logger.trace("RECV: {}", line);
+                        logger.tracef("RECV: %s", line);
                         JsonNode message = mapper.readTree(line);
                         if (inboundMessageHandler != null) {
                             inboundMessageHandler.accept(message);
                         }
                     } catch (Exception e) {
                         if (!isClosing) {
-                            logger.error("Error processing inbound message: {}", line, e);
+                            logger.errorf(e, "Error processing inbound message: %s", line);
                         }
                         break;
                     }
@@ -242,7 +241,7 @@ public class StdioAcpClientTransport {
                             jsonMessage = jsonMessage.replace("\r\n", "\\n")
                                     .replace("\n", "\\n")
                                     .replace("\r", "\\n");
-                            logger.trace("SEND: {}", jsonMessage);
+                            logger.tracef("SEND: %s", jsonMessage);
 
                             var os = process.getOutputStream();
                             synchronized (os) {
@@ -296,9 +295,9 @@ public class StdioAcpClientTransport {
                 if (exited) {
                     int exitCode = process.exitValue();
                     if (exitCode == 0 || exitCode == 143 || exitCode == 137) {
-                        logger.info("ACP agent process stopped (exit code {})", exitCode);
+                        logger.infof("ACP agent process stopped (exit code %d)", exitCode);
                     } else {
-                        logger.warn("Process terminated with code {}", exitCode);
+                        logger.warnf("Process terminated with code %d", exitCode);
                     }
                 } else {
                     logger.warn("Process did not exit within timeout, forcing kill");
