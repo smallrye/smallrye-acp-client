@@ -50,6 +50,7 @@
 
     <modules>
         <module>schema</module>
+        <module>registry</module>
         <module>core</module>
         <module>client</module>
     </modules>
@@ -84,6 +85,11 @@
             <dependency>
                 <groupId>io.smallrye.ai</groupId>
                 <artifactId>acp-client-schema</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.smallrye.ai</groupId>
+                <artifactId>acp-java-registry</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.smallrye.ai</groupId>
+        <artifactId>acp-java-parent</artifactId>
+        <version>0.1.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>acp-java-registry</artifactId>
+    <description>Java ACP Registry: agent discovery, installation and resolution</description>
+    <name>Smallrye AI :: Agent Client Protocol :: Registry</name>
+
+    <dependencies>
+        <!-- Jackson JSON processing -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.jboss.logging</groupId>
+            <artifactId>jboss-logging</artifactId>
+        </dependency>
+    </dependencies>
+</project>
