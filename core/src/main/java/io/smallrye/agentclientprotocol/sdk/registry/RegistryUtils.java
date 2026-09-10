@@ -48,7 +48,7 @@ public final class RegistryUtils {
         return osKey + "-" + archKey;
     }
 
-    static String resolveBinName(String packageSpec) {
+    public static String resolveBinName(String packageSpec) {
         String name = packageSpec;
         int atVersion = name.lastIndexOf('@');
         if (atVersion > 0) {
@@ -65,7 +65,7 @@ public final class RegistryUtils {
         return name;
     }
 
-    static Path downloadFile(String url, Path targetDir) throws IOException, InterruptedException {
+    public static Path downloadFile(String url, Path targetDir) throws IOException, InterruptedException {
         HttpClient client = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
@@ -92,7 +92,7 @@ public final class RegistryUtils {
         return archiveFile;
     }
 
-    static void extractArchive(Path archiveFile, Path targetDir)
+    public static void extractArchive(Path archiveFile, Path targetDir)
             throws IOException, InterruptedException {
 
         String name = archiveFile.getFileName().toString().toLowerCase();
@@ -108,7 +108,7 @@ public final class RegistryUtils {
         }
     }
 
-    private static void extractZip(Path archiveFile, Path targetDir) throws IOException {
+    public static void extractZip(Path archiveFile, Path targetDir) throws IOException {
         try (FileSystem zipFs = FileSystems.newFileSystem(archiveFile, Map.of())) {
             for (Path root : zipFs.getRootDirectories()) {
                 try (Stream<Path> stream = Files.walk(root)) {
@@ -130,13 +130,13 @@ public final class RegistryUtils {
         }
     }
 
-    static void makeExecutable(Path path) throws IOException, InterruptedException {
+    public static void makeExecutable(Path path) throws IOException, InterruptedException {
         if (!System.getProperty("os.name").toLowerCase().contains("win") && Files.exists(path)) {
             runProcess(path.getParent(), "chmod", "+x", path.toString());
         }
     }
 
-    static void runProcess(Path workDir, String... command)
+    public static void runProcess(Path workDir, String... command)
             throws IOException, InterruptedException {
         Process process = new ProcessBuilder(command)
                 .directory(workDir.toFile())
@@ -149,7 +149,7 @@ public final class RegistryUtils {
         }
     }
 
-    static void deleteDirectory(Path dir) throws IOException {
+    public static void deleteDirectory(Path dir) throws IOException {
         if (!Files.exists(dir))
             return;
         try (Stream<Path> walk = Files.walk(dir)) {
