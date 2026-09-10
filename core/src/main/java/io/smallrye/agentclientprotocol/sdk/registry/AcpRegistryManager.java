@@ -50,27 +50,44 @@ public class AcpRegistryManager {
 
     private final OutputHandler output;
 
+    /**
+     * Creates an ACP registry manager using the default console output handler.
+     */
     public AcpRegistryManager() {
         this(OutputHandler.console());
     }
 
+    /**
+     * Creates an ACP registry manager with the given output handler.
+     *
+     * @param output the handler for user-facing messages
+     */
     public AcpRegistryManager(OutputHandler output) {
         this.output = output;
     }
 
     // ── Registry operations ─────────────────────────────────────────────────
 
+    /**
+     * Fetches the latest registry json list from the remote ACP registry URL and caches it locally.
+     *
+     * @return the parsed registry containing the list of the ACP agents
+     * @throws IOException if the HTTP request fails or the response cannot be written to disk
+     * @throws InterruptedException if the HTTP request is interrupted
+     */
     public Registry fetchRegistry() throws IOException, InterruptedException {
         logger.info("Fetching ACP registry from " + REGISTRY_URL);
 
-        HttpClient client = HttpClient.newBuilder()
+        HttpResponse<String> response;
+        try (HttpClient client = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.NORMAL)
-                .build();
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(REGISTRY_URL))
-                .GET()
-                .build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                .build()) {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(REGISTRY_URL))
+                    .GET()
+                    .build();
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        }
 
         if (response.statusCode() != 200) {
             throw new IOException("Failed to fetch registry: HTTP " + response.statusCode());
@@ -84,6 +101,12 @@ public class AcpRegistryManager {
         return MAPPER.readValue(json, Registry.class);
     }
 
+    /**
+     * Returns the locally cached registry defined within the file ~/.agents/registry.json, or {@code null} if no cache exists,
+     * or it cannot be read.
+     *
+     * @return the cached registry, or {@code null}
+     */
     public Registry getCachedRegistry() {
         if (!Files.exists(REGISTRY_CACHE)) {
             return null;
@@ -96,11 +119,13 @@ public class AcpRegistryManager {
         }
     }
 
-    public Registry getOrFetchRegistry() throws IOException, InterruptedException {
-        Registry cached = getCachedRegistry();
-        return cached != null ? cached : fetchRegistry();
-    }
-
+    /**
+     * Finds an agent by ID in the given registry.
+     *
+     * @param registry the registry to search (maybe {@code null})
+     * @param agentId the agent identifier to match
+     * @return the matching agent, or {@code null} if not found
+     */
     public Agent findAgent(Registry registry, String agentId) {
         if (registry == null || registry.agents() == null)
             return null;
@@ -112,6 +137,18 @@ public class AcpRegistryManager {
 
     // ── Install operations ──────────────────────────────────────────────────
 
+    /**
+     * Installs an ACP agent from the remote registry. The agent is fetched, its distribution
+     * resolved for the current platform, and installed under {@link #AGENTS_DIR}.
+     *
+     * <p>
+     * Supports binary, npx and uvx distribution types, falling back in that order.
+     *
+     * @param agentId the agent identifier to install
+     * @param force if {@code true}, reinstall even if the agent is already present
+     * @throws IOException if downloading or extracting fails
+     * @throws InterruptedException if the operation is interrupted
+     */
     public void installAgent(String agentId, boolean force) throws IOException, InterruptedException {
         Registry registry = fetchRegistry();
         Agent agent = findAgent(registry, agentId);
@@ -171,6 +208,17 @@ public class AcpRegistryManager {
                 + agentId + "' on platform '" + platform + "'.");
     }
 
+    /**
+     * Downloads and installs a platform-specific binary agent. If the expected binary
+     * is not found at the declared path after extraction, the agent directory is searched.
+     *
+     * @param agent the agent metadata from the registry
+     * @param platformBinary the platform-specific binary distribution info
+     * @param platform the detected platform identifier (e.g. {@code "darwin-arm64"})
+     * @param agentDir the local installation directory for this agent
+     * @throws IOException if downloading or extracting the archive fails
+     * @throws InterruptedException if the download is interrupted
+     */
     private void installBinaryAgent(Agent agent, PlatformBinary platformBinary,
             String platform, Path agentDir)
             throws IOException, InterruptedException {
@@ -224,6 +272,15 @@ public class AcpRegistryManager {
         output.info("  Binary: " + installed.cmd());
     }
 
+    /**
+     * Installs an agent using Node.js tools: npm/npx. The npm package is installed locally under
+     * the agent directory and the executable is resolved from {@code node_modules/.bin}.
+     *
+     * @param agent the agent metadata from the registry
+     * @param agentDir the local installation directory for this agent
+     * @throws IOException if the npm install fails
+     * @throws InterruptedException if the process is interrupted
+     */
     private void installNpxAgent(Agent agent, Path agentDir)
             throws IOException, InterruptedException {
 
@@ -265,6 +322,15 @@ public class AcpRegistryManager {
         output.info("  Binary: " + binPath.toAbsolutePath());
     }
 
+    /**
+     * Installs an agent using Python tools: uv/uvx. A Python virtual environment is created under
+     * the agent directory and the package is pip-installed into it.
+     *
+     * @param agent the agent metadata from the registry
+     * @param agentDir the local installation directory for this agent
+     * @throws IOException if the uv install fails
+     * @throws InterruptedException if the process is interrupted
+     */
     private void installUvxAgent(Agent agent, Path agentDir)
             throws IOException, InterruptedException {
 
@@ -319,6 +385,12 @@ public class AcpRegistryManager {
 
     // ── Installed-agent operations ──────────────────────────────────────────
 
+    /**
+     * Reads the metadata for a locally installed ACP agent.
+     *
+     * @param agentId the agent identifier
+     * @return the installed agent metadata, or {@code null} if not installed or unreadable
+     */
     public InstalledAgent getInstalledAgent(String agentId) {
         Path metadataFile = AGENTS_DIR.resolve(agentId).resolve("agent.json");
         if (!Files.exists(metadataFile)) {
@@ -332,6 +404,11 @@ public class AcpRegistryManager {
         }
     }
 
+    /**
+     * Lists all locally installed ACP agents.
+     *
+     * @return an unmodifiable list of installed agents (empty if none)
+     */
     public List<InstalledAgent> listInstalled() {
         if (!Files.exists(AGENTS_DIR)) {
             return List.of();
@@ -349,10 +426,22 @@ public class AcpRegistryManager {
         return result;
     }
 
+    /**
+     * Checks whether an ACP agent is installed locally.
+     *
+     * @param agentId the agent identifier
+     * @return {@code true} if the agent is installed
+     */
     public boolean isInstalled(String agentId) {
         return getInstalledAgent(agentId) != null;
     }
 
+    /**
+     * Removes a locally installed ACP agent and its directory.
+     *
+     * @param agentId the agent identifier to remove
+     * @throws IOException if the agent directory cannot be deleted
+     */
     public void removeAgent(String agentId) throws IOException {
         InstalledAgent installed = getInstalledAgent(agentId);
         if (installed == null) {
@@ -367,6 +456,13 @@ public class AcpRegistryManager {
         output.info("Agent '" + agentId + "' (v" + installed.version() + ") removed.");
     }
 
+    /**
+     * Persists the installed ACP agent metadata as {@code agent.json} in the agent's directory.
+     *
+     * @param agentId the agent identifier
+     * @param installed the metadata to persist
+     * @throws IOException if the file cannot be written
+     */
     private void saveInstalledAgent(String agentId, InstalledAgent installed) throws IOException {
         Path metadataFile = AGENTS_DIR.resolve(agentId).resolve("agent.json");
         Files.createDirectories(metadataFile.getParent());
@@ -375,6 +471,12 @@ public class AcpRegistryManager {
 
     // ── Agent resolution ────────────────────────────────────────────────────
 
+    /**
+     * Resolves the command and arguments needed to launch an installed ACP agent.
+     *
+     * @param agentId the agent identifier
+     * @return the agent command, or {@code null} if the agent is not installed
+     */
     public AgentCommand resolveAgentCommand(String agentId) {
         InstalledAgent installed = getInstalledAgent(agentId);
         if (installed == null) {
