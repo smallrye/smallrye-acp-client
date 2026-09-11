@@ -254,12 +254,50 @@ public class AcpCommand implements Command<CommandInvocation> {
         try (AcpSyncClient client = AcpClient.sync(transport)
                 .withRequestTimeout(reqTimeout)
                 .withPromptRequestTimeout(pRequestTimeout)
-                .onSessionUpdate(notification -> {
-                    String updateType = notification.meta() != null
-                            ? (String) notification.meta().get("sessionUpdate")
-                            : null;
-                    handleSessionUpdate(updateType, notification.update());
-                })
+                .withNotifications(n -> n
+                        .onAgentMessage(chunk -> {
+                            flushThoughts();
+                            System.out.print(extractText(chunk.content()));
+                            messageOutputPending = true;
+                        })
+                        .onAgentThought(chunk -> thoughtBuffer.append(extractText(chunk.content())))
+                        .onToolCall(tc -> {
+                            flushOutput();
+                            logger.infof("[ToolCall] %s (%s) - %s", tc.title(), tc.kind(), tc.status());
+                        })
+                        .onToolCallUpdate(tcu -> {
+                            flushOutput();
+                            logger.infof("[ToolUpdate] %s - %s", tcu.title(), tcu.status());
+                        })
+                        .onPlan(plan -> {
+                            flushOutput();
+                            logger.infof("[Plan] %d steps:", plan.entries().size());
+                            plan.entries().forEach(e -> logger.infof("  - %s [%s]", e.content(), e.status()));
+                        })
+                        .onAvailableCommands(cmds -> {
+                            flushOutput();
+                            logger.debug("[Agent Commands] available:");
+                            cmds.availableCommands()
+                                    .forEach(c -> logger.debugf("  /%s - %s", c.name(), c.description()));
+                        })
+                        .onConfigOption(config -> {
+                            flushOutput();
+                            if (config.configOptions() != null) {
+                                config.configOptions().stream()
+                                        .filter(opt -> "model".equalsIgnoreCase(opt.id()))
+                                        .findFirst()
+                                        .ifPresent(opt -> logger.infof("Model changed: %s", opt.currentValue()));
+                            }
+                            logger.infof("[Config] %s", config.configOptions());
+                        })
+                        .onCurrentMode(mode -> {
+                            flushOutput();
+                            logger.infof("[Mode] %s", mode.currentModeId());
+                        })
+                        .onUsage(usage -> {
+                            flushOutput();
+                            logger.infof("[Usage] used=%s size=%s cost=%s", usage.used(), usage.size(), usage.cost());
+                        }))
                 .withPermissionMode(permissionMode)
                 .build()) {
 
@@ -298,11 +336,7 @@ public class AcpCommand implements Command<CommandInvocation> {
                     })
                     .execute();
 
-            flushThoughts();
-            if (messageOutputPending) {
-                System.out.println();
-                messageOutputPending = false;
-            }
+            flushOutput();
             logger.infof("Done! Stop reason: %s", result.stopReason());
 
             return CommandResult.SUCCESS;
@@ -337,65 +371,13 @@ public class AcpCommand implements Command<CommandInvocation> {
         return model;
     }
 
-    // -- Session update handling ----
-    // NOTE: These handlers use System.out.print/println because they are invoked as callbacks
-    // from the ACP client transport layer, where CommandInvocation is not available.
-    // Refactoring to use invocation.println() would require changes to the ACP client API.
+    // -- Output helpers ----
 
-    private void handleSessionUpdate(String updateType, Object update) {
-        if (update == null) {
-            logger.debug("[Update] null");
-            return;
-        }
-
-        if (!"agent_thought_chunk".equals(updateType)) {
-            flushThoughts();
-        }
-
-        if (!"agent_message_chunk".equals(updateType) && messageOutputPending) {
+    private void flushOutput() {
+        flushThoughts();
+        if (messageOutputPending) {
             System.out.println();
             messageOutputPending = false;
-        }
-
-        switch (update) {
-            case ContentChunk chunk -> {
-                if ("agent_thought_chunk".equals(updateType)) {
-                    thoughtBuffer.append(extractText(chunk.content()));
-                } else {
-                    System.out.print(extractText(chunk.content()));
-                    messageOutputPending = true;
-                }
-            }
-            case Plan plan -> {
-                logger.infof("[Plan] %d steps:", plan.entries().size());
-                plan.entries().forEach(e -> logger.infof("  - %s [%s]", e.content(), e.status()));
-            }
-            case ToolCall tool ->
-                logger.infof("[ToolCall] %s (%s) - %s", tool.title(), tool.kind(), tool.status());
-            case ToolCallUpdate toolUpdate ->
-                logger.infof("[ToolUpdate] %s - %s", toolUpdate.title(), toolUpdate.status());
-            case AvailableCommandsUpdate commands -> {
-                logger.debug("[Agent Commands] available:");
-                commands.availableCommands()
-                        .forEach(c -> logger.debugf("  /%s - %s", c.name(), c.description()));
-            }
-            case ConfigOptionUpdate configUpdate -> {
-                if (configUpdate.configOptions() != null) {
-                    configUpdate.configOptions().stream()
-                            .filter(opt -> "model".equalsIgnoreCase(opt.id()))
-                            .findFirst()
-                            .ifPresent(opt -> logger.infof("Model changed: %s", opt.currentValue()));
-                }
-                logger.infof("[Config] %s", configUpdate.configOptions());
-            }
-            case CurrentModeUpdate mode -> logger.infof("[Mode] %s", mode.currentModeId());
-            default -> {
-                if ("usage_update".equals(updateType) && update instanceof Map<?, ?> map) {
-                    logger.infof("[Usage] used=%s size=%s cost=%s", map.get("used"), map.get("size"), map.get("cost"));
-                } else {
-                    logger.infof("[Update] %s: %s", updateType, update);
-                }
-            }
         }
     }
 
