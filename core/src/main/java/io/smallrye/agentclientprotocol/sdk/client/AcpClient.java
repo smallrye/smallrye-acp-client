@@ -2,7 +2,6 @@ package io.smallrye.agentclientprotocol.sdk.client;
 
 import java.time.Duration;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import io.smallrye.agentclientprotocol.sdk.client.transport.StdioAcpClientTransport;
 import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
@@ -24,7 +23,7 @@ import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
  *                 .onAgentMessage(chunk -> System.out.print(extractText(chunk.content())))
  *                 .onToolCall(tc -> logger.info("[ToolCall] " + tc.title()))
  *                 .onUsage(usage -> logger.info("[Usage] " + usage.used())))
- *         .withPermission(request -> handlePermission(request))
+ *         .withPermissionMode("allow_always")
  *         .build()) {
  *
  *     AcpSessionResult result = client.workflow()
@@ -86,7 +85,7 @@ public final class AcpClient {
 
         NotificationRouter notificationRouter;
         Consumer<SessionNotification> sessionUpdateConsumer;
-        Function<RequestPermissionRequest, RequestPermissionResponse> permissionRequestHandler;
+        String permissionMode = "allow_always";
 
         AbstractBuilder(StdioAcpClientTransport transport) {
             this.transport = transport;
@@ -159,17 +158,19 @@ public final class AcpClient {
             return self();
         }
 
-        // ===== Permission handler =====
+        // ===== Permission mode =====
 
         /**
-         * Sets the handler for permission requests from the agent.
-         * If not set, permissions are auto-accepted with the first allow option.
+         * Sets the permission mode for agent permission requests.
+         * Supported values: {@code "allow_always"}, {@code "allow_once"},
+         * {@code "reject_once"}, {@code "reject_always"}.
+         * Defaults to {@code "allow_always"}.
          *
-         * @param handler function that receives the permission request and returns a response
+         * @param mode the permission mode string
          * @return this builder
          */
-        public B withPermission(Function<RequestPermissionRequest, RequestPermissionResponse> handler) {
-            this.permissionRequestHandler = handler;
+        public B withPermissionMode(String mode) {
+            this.permissionMode = mode;
             return self();
         }
 
@@ -207,7 +208,7 @@ public final class AcpClient {
          */
         public AcpSyncClient build() {
             AcpAsyncClient async = new AcpAsyncClient(transport, requestTimeout, promptRequestTimeout,
-                    buildNotificationConsumer(), permissionRequestHandler);
+                    buildNotificationConsumer(), permissionMode);
             return new AcpSyncClient(async);
         }
     }
@@ -226,7 +227,7 @@ public final class AcpClient {
          */
         public AcpAsyncClient build() {
             return new AcpAsyncClient(transport, requestTimeout, promptRequestTimeout,
-                    buildNotificationConsumer(), permissionRequestHandler);
+                    buildNotificationConsumer(), permissionMode);
         }
     }
 }

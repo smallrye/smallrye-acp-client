@@ -50,7 +50,7 @@ try (AcpSyncClient client = AcpClient.sync(transport)
             .onToolCallUpdate(tcu -> logger.info("[ToolUpdate] " + tcu.title() + " - " + tcu.status()))
             .onPlan(plan -> plan.entries().forEach(e -> logger.info("  - " + e.content())))
             .onUsage(usage -> logger.info("[Usage] used=" + usage.used() + " cost=" + usage.cost())))
-        .withPermission(request -> handlePermission(request))
+        .withPermissionMode("allow_always")
         .build()) {
     // client is connected and ready
 }
@@ -64,7 +64,7 @@ try (AcpSyncClient client = AcpClient.sync(transport)
 | `withPromptRequestTimeout(Duration)` | Timeout for prompt requests; `Duration.ZERO` means no timeout | `Duration.ZERO` |
 | `withNotifications(Consumer<NotificationRouter>)` | Typed notification handlers (see below) | none |
 | `onSessionUpdate(Consumer<SessionNotification>)` | Raw consumer for all session notifications | none |
-| `withPermission(Function<RequestPermissionRequest, RequestPermissionResponse>)` | Handler for agent permission requests | auto-accept |
+| `withPermissionMode(String)` | Permission mode: `"allow_always"`, `"allow_once"`, `"reject_once"`, `"reject_always"` | `"allow_always"` |
 
 ### Notification handling
 

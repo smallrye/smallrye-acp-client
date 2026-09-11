@@ -251,7 +251,6 @@ public class AcpCommand implements Command<CommandInvocation> {
         var transport = new StdioAcpClientTransport(params);
 
         // 3. Build sync client with fluent API
-        final String permMode = permissionMode;
         try (AcpSyncClient client = AcpClient.sync(transport)
                 .withRequestTimeout(reqTimeout)
                 .withPromptRequestTimeout(pRequestTimeout)
@@ -261,7 +260,7 @@ public class AcpCommand implements Command<CommandInvocation> {
                             : null;
                     handleSessionUpdate(updateType, notification.update());
                 })
-                .withPermission(request -> handlePermissionRequest(request, permMode))
+                .withPermissionMode(permissionMode)
                 .build()) {
 
             // 4. Execute the ACP session workflow
@@ -413,27 +412,6 @@ public class AcpCommand implements Command<CommandInvocation> {
             return text != null ? text.toString() : content.toString();
         }
         return content != null ? content.toString() : "";
-    }
-
-    // -- Permission handling ----
-
-    private static RequestPermissionResponse handlePermissionRequest(RequestPermissionRequest request, String permissionMode) {
-        var toolCall = request.toolCall();
-        logger.infof("[Permission] %s requests: %s", toolCall.title(), toolCall.kind());
-
-        String selectedOptionId = request.options().stream()
-                .filter(o -> o.kind().getValue().equals(permissionMode))
-                .findFirst()
-                .map(PermissionOption::optionId)
-                .orElseGet(() -> request.options().stream()
-                        .filter(o -> o.kind() == PermissionOptionKind.ALLOW_ALWAYS
-                                || o.kind() == PermissionOptionKind.ALLOW_ONCE)
-                        .findFirst()
-                        .map(PermissionOption::optionId)
-                        .orElse(request.options().getFirst().optionId()));
-
-        logger.infof("[Permission] Responded with: %s", permissionMode);
-        return new RequestPermissionResponse(new SelectedPermissionOutcome(selectedOptionId));
     }
 
     // -- Provider env-var validation ----

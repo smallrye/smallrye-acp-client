@@ -24,7 +24,7 @@ import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
  * try (AcpSyncClient client = AcpClient.sync(transport)
  *         .onAgentMessage(chunk -> System.out.print(extractText(chunk.content())))
  *         .onToolCall(tc -> logger.info("[ToolCall] " + tc.title()))
- *         .withPermissionHandler(request -> handlePermission(request))
+ *         .withPermissionMode("allow_always")
  *         .build()) {
  *
  *     // Fluent workflow API
