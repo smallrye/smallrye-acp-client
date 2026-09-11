@@ -331,6 +331,9 @@ public class AcpCommand implements Command<CommandInvocation> {
             }
             logger.infof("Done! Stop reason: %s", response.stopReason());
 
+            // 8. Close the session to free agent-side resources
+            client.closeSession(new CloseSessionRequest(sessionId));
+
             return CommandResult.SUCCESS;
         } catch (Exception e) {
             invocation.println("Error: " + e.getMessage());
@@ -401,7 +404,7 @@ public class AcpCommand implements Command<CommandInvocation> {
             case ToolCallUpdate toolUpdate ->
                 logger.infof("[ToolUpdate] %s - %s", toolUpdate.title(), toolUpdate.status());
             case AvailableCommandsUpdate commands -> {
-                logger.info("[Commands] Available:");
+                logger.debug("[Agent Commands] available:");
                 commands.availableCommands()
                         .forEach(c -> logger.debugf("  /%s - %s", c.name(), c.description()));
             }

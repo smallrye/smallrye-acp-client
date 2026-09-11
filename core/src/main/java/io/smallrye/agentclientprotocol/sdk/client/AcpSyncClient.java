@@ -28,6 +28,8 @@ import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
  *     var session = client.newSession(new NewSessionRequest(".", List.of()));
  *     var response = client.prompt(new PromptRequest(
  *             List.of(new TextContent("Hello")), session.sessionId()));
+ *     // Close the session to free agent-side resources
+ *     client.closeSession(new CloseSessionRequest(session.sessionId()));
  * }
  * }</pre>
  *
@@ -120,6 +122,17 @@ public class AcpSyncClient implements AutoCloseable {
      */
     public SetSessionConfigOptionResponse setConfigOption(SetSessionConfigOptionRequest request) {
         return await(delegate.setConfigOption(request));
+    }
+
+    /**
+     * Closes an active session, freeing agent-side resources (blocking).
+     * Only works if the agent supports the {@code sessionCapabilities.close} capability.
+     *
+     * @param request the session ID to close
+     * @return the close response
+     */
+    public CloseSessionResponse closeSession(CloseSessionRequest request) {
+        return await(delegate.closeSession(request));
     }
 
     /**
