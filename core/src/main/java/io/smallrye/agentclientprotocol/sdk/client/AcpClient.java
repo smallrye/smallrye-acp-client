@@ -72,7 +72,7 @@ public final class AcpClient {
          * @return this builder
          */
         public SyncBuilder promptRequestTimeout(Duration timeout) {
-            this.promptRequestTimeout = timeout;
+            this.promptRequestTimeout = timeout != null ? timeout : Duration.ZERO;
             return this;
         }
 
