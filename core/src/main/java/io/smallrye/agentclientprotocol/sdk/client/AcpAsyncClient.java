@@ -12,8 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,7 +47,7 @@ import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.Error;
  */
 public class AcpAsyncClient {
 
-    private static final Logger logger = LoggerFactory.getLogger(AcpAsyncClient.class);
+    private static final Logger logger = Logger.getLogger(AcpAsyncClient.class);
 
     private static final Map<String, Class<?>> SESSION_UPDATE_TYPES = Map.ofEntries(
             Map.entry("agent_message_chunk", ContentChunk.class),
@@ -243,7 +242,7 @@ public class AcpAsyncClient {
         requestNode.put("method", method);
         requestNode.set("params", mapper.valueToTree(params));
 
-        logger.debug(">> {} (id={})", method, id);
+        logger.debugf(">> %s (id=%d)", method, id);
 
         transport.sendMessage(requestNode);
         return future;
@@ -260,7 +259,7 @@ public class AcpAsyncClient {
         node.put("jsonrpc", "2.0");
         node.put("method", method);
         node.set("params", mapper.valueToTree(params));
-        logger.debug(">> {} (notification)", method);
+        logger.debugf(">> %s (notification)", method);
         transport.sendMessage(node);
     }
 
@@ -342,7 +341,7 @@ public class AcpAsyncClient {
         }
 
         // Unknown update type — return as a Map
-        logger.debug("Unknown session update type: {}", updateType);
+        logger.debugf("Unknown session update type: %s", updateType);
         return mapper.convertValue(updateNode, Object.class);
     }
 
@@ -373,7 +372,7 @@ public class AcpAsyncClient {
                             .orElse(request.options().getFirst().optionId());
                     response = new RequestPermissionResponse(
                             new SelectedPermissionOutcome(optionId));
-                    logger.info("[Permission] Auto-accepted: {}", request.toolCall().title());
+                    logger.infof("[Permission] Auto-accepted: %s", request.toolCall().title());
                 }
                 sendResponse(id, response);
             } catch (Exception e) {
@@ -381,7 +380,7 @@ public class AcpAsyncClient {
                 sendErrorResponse(id, -32603, "Internal error: " + e.getMessage());
             }
         } else {
-            logger.warn("Unhandled agent request method: {}", method);
+            logger.warnf("Unhandled agent request method: %s", method);
             sendErrorResponse(id, -32601, "Method not found: " + method);
         }
     }
@@ -394,7 +393,7 @@ public class AcpAsyncClient {
         responseNode.put("jsonrpc", "2.0");
         responseNode.set("id", id);
         responseNode.set("result", mapper.valueToTree(result));
-        logger.debug("<< response (id={})", id);
+        logger.debugf("<< response (id=%s)", id);
         transport.sendMessage(responseNode);
     }
 
@@ -409,7 +408,7 @@ public class AcpAsyncClient {
         errorNode.put("code", code);
         errorNode.put("message", message);
         responseNode.set("error", errorNode);
-        logger.debug("<< error response (id={})", id);
+        logger.debugf("<< error response (id=%s)", id);
         transport.sendMessage(responseNode);
     }
 }

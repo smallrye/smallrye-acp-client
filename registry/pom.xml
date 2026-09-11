@@ -8,18 +8,11 @@
         <version>0.1.1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>acp-java-core</artifactId>
-    <description>Java ACP Core library: client stdio, transport</description>
-    <name>Smallrye AI :: Agent Client Protocol :: Java Core library</name>
+    <artifactId>acp-java-registry</artifactId>
+    <description>Java ACP Registry: agent discovery, installation and resolution</description>
+    <name>Smallrye AI :: Agent Client Protocol :: Registry</name>
 
     <dependencies>
-        <!-- Schema module (versioned schema classes) -->
-        <dependency>
-            <groupId>io.smallrye.ai</groupId>
-            <artifactId>acp-java-schema</artifactId>
-            <version>0.1.1-SNAPSHOT</version>
-        </dependency>
-
         <!-- Jackson JSON processing -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

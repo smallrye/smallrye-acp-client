@@ -10,11 +10,12 @@ The project implements the [ACP Schema Specification v1](https://agentclientprot
 
 The project is organized as a multi-module Maven build:
 
-| Module   | Artifact ID     | Description                                                                                                      |
-|----------|-----------------|------------------------------------------------------------------------------------------------------------------|
-| `schema` | `acp-schema`    | ACP JSON Schema (`v1`), generated Java records/enums, and `JSonSchemaGenerator` code generator                   |
-| `core`   | `acp-core` | ACP implementation library: `AcpClient`, `AcpAsyncClient`, `AcpSyncClient`, stdio transport. Depends on `schema` |
-| `client` | `acp-client` | Aesh CLI (`AcpAgentCommand`), skills, and sandbox. Depends on `core`. Built as Quarkus uber-jar                  |
+| Module     | Artifact ID      | Description                                                                                                      |
+|------------|------------------|------------------------------------------------------------------------------------------------------------------|
+| `schema`   | `acp-schema`     | ACP JSON Schema (`v1`), generated Java records/enums, and `JSonSchemaGenerator` code generator                   |
+| `registry` | `acp-registry`   | Agent registry: discovery, installation (binary/npx/uvx) and resolution of ACP agents                           |
+| `core`     | `acp-core`       | ACP implementation library: `AcpClient`, `AcpAsyncClient`, `AcpSyncClient`, stdio transport. Depends on `schema` |
+| `client`   | `acp-client`     | Aesh CLI (`AcpAgentCommand`), skills, and sandbox. Depends on `core` and `registry`. Built as Quarkus uber-jar   |
 
 ## Prerequisites
 

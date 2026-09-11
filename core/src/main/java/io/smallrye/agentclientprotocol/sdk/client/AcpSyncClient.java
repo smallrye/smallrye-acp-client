@@ -6,8 +6,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jboss.logging.Logger;
 
 import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
 
@@ -37,7 +36,7 @@ import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
  */
 public class AcpSyncClient implements AutoCloseable {
 
-    private static final Logger logger = LoggerFactory.getLogger(AcpSyncClient.class);
+    private static final Logger logger = Logger.getLogger(AcpSyncClient.class);
     private static final Duration DEFAULT_CLOSE_TIMEOUT = Duration.ofSeconds(10);
 
     private final AcpAsyncClient delegate;

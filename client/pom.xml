@@ -29,6 +29,13 @@
             <artifactId>quarkus-aesh</artifactId>
         </dependency>
 
+        <!-- Registry module (agent discovery, installation) -->
+        <dependency>
+            <groupId>io.smallrye.ai</groupId>
+            <artifactId>acp-java-registry</artifactId>
+            <version>0.1.1-SNAPSHOT</version>
+        </dependency>
+
         <!-- Core module (Acp Client, transport) -->
         <dependency>
             <groupId>io.smallrye.ai</groupId>

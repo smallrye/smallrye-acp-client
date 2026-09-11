@@ -7,6 +7,8 @@ import org.aesh.command.invocation.CommandInvocation;
 import org.aesh.command.option.Argument;
 import org.aesh.command.option.Option;
 
+import io.smallrye.agentclientprotocol.sdk.registry.AcpRegistryManager;
+
 /**
  * Subcommand that installs an ACP agent from the remote registry.
  *
@@ -34,7 +36,7 @@ public class InstallCommand implements Command<CommandInvocation> {
     @Override
     public CommandResult execute(CommandInvocation invocation) {
         try {
-            var manager = new AcpRegistryManager();
+            var manager = new AcpRegistryManager(new AeshOutputHandler(invocation));
             manager.installAgent(agentId, force);
             return CommandResult.SUCCESS;
         } catch (Exception e) {

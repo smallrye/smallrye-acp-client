@@ -14,7 +14,6 @@ import org.aesh.command.invocation.CommandInvocation;
 import org.aesh.command.option.Option;
 import org.jboss.logging.Logger;
 
-import io.smallrye.acp.registry.AcpRegistryManager;
 import io.smallrye.acp.registry.RegistryCommand;
 import io.smallrye.acp.toolbox.GitUtil;
 import io.smallrye.acp.toolbox.ProjectUtil;
@@ -22,6 +21,8 @@ import io.smallrye.agentclientprotocol.sdk.client.AcpClient;
 import io.smallrye.agentclientprotocol.sdk.client.AcpSyncClient;
 import io.smallrye.agentclientprotocol.sdk.client.transport.AgentParameters;
 import io.smallrye.agentclientprotocol.sdk.client.transport.StdioAcpClientTransport;
+import io.smallrye.agentclientprotocol.sdk.registry.AcpRegistryManager;
+import io.smallrye.agentclientprotocol.sdk.registry.model.Registry;
 import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
 
 /**
@@ -162,7 +163,7 @@ public class AcpCommand implements Command<CommandInvocation> {
                 args = acpAgentArgs != null ? acpAgentArgs
                         : String.join(",", agentCommand.args());
             } else {
-                AcpRegistryManager.Registry registry = registryManager.getCachedRegistry();
+                Registry registry = registryManager.getCachedRegistry();
                 if (registry != null && registryManager.findAgent(registry, agent) != null) {
                     invocation.println("ERROR: Agent '" + agent
                             + "' exists in the ACP registry but is not installed.");
