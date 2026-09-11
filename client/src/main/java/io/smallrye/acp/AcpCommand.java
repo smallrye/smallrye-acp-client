@@ -18,6 +18,7 @@ import io.smallrye.acp.registry.RegistryCommand;
 import io.smallrye.acp.toolbox.GitUtil;
 import io.smallrye.acp.toolbox.ProjectUtil;
 import io.smallrye.agentclientprotocol.sdk.client.AcpClient;
+import io.smallrye.agentclientprotocol.sdk.client.AcpSessionResult;
 import io.smallrye.agentclientprotocol.sdk.client.AcpSyncClient;
 import io.smallrye.agentclientprotocol.sdk.client.transport.AgentParameters;
 import io.smallrye.agentclientprotocol.sdk.client.transport.StdioAcpClientTransport;
@@ -220,6 +221,18 @@ public class AcpCommand implements Command<CommandInvocation> {
         }
         final String cwd = sessionCwd;
 
+        // 0d. Resolve skill path (URL → local path if needed)
+        skillPath = ProjectUtil.resolveValueWithPrecedence(skillPath, "SKILL_PATH", null);
+        if (GitUtil.isUrl(skillPath)) {
+            try {
+                skillPath = GitUtil.resolveFromUrl(skillPath).toString();
+            } catch (IOException e) {
+                invocation.println("ERROR: Failed to resolve skill from URL: " + skillPath);
+                invocation.println("       " + e.getMessage());
+                return CommandResult.FAILURE;
+            }
+        }
+
         // 1. Configure agent parameters
         var paramBuilder = AgentParameters.builder(binary);
         if (args != null && !args.isEmpty()) {
@@ -235,104 +248,94 @@ public class AcpCommand implements Command<CommandInvocation> {
         // 2. Create transport
         var transport = new StdioAcpClientTransport(params);
 
-        // 3. Build sync client with session update consumer and permission handler
-        final String permMode = permissionMode;
+        // 3. Build sync client with fluent API
         try (AcpSyncClient client = AcpClient.sync(transport)
-                .requestTimeout(reqTimeout)
-                .promptRequestTimeout(pRequestTimeout)
-                .sessionUpdateConsumer(notification -> {
-                    String updateType = notification.meta() != null
-                            ? (String) notification.meta().get("sessionUpdate")
-                            : null;
-                    handleSessionUpdate(updateType, notification.update());
-                })
-                .permissionRequestHandler(request -> handlePermissionRequest(request, permMode))
+                .withRequestTimeout(reqTimeout)
+                .withPromptRequestTimeout(pRequestTimeout)
+                .withNotifications(n -> n
+                        .onAgentMessage(chunk -> {
+                            flushThoughts();
+                            System.out.print(extractText(chunk.content()));
+                            messageOutputPending = true;
+                        })
+                        .onAgentThought(chunk -> thoughtBuffer.append(extractText(chunk.content())))
+                        .onToolCall(tc -> {
+                            flushOutput();
+                            logger.infof("[ToolCall] %s (%s) - %s", tc.title(), tc.kind(), tc.status());
+                        })
+                        .onToolCallUpdate(tcu -> {
+                            flushOutput();
+                            logger.infof("[ToolUpdate] %s - %s", tcu.title(), tcu.status());
+                        })
+                        .onPlan(plan -> {
+                            flushOutput();
+                            logger.infof("[Plan] %d steps:", plan.entries().size());
+                            plan.entries().forEach(e -> logger.infof("  - %s [%s]", e.content(), e.status()));
+                        })
+                        .onAvailableCommands(cmds -> {
+                            flushOutput();
+                            logger.debug("[Agent Commands] available:");
+                            cmds.availableCommands()
+                                    .forEach(c -> logger.debugf("  /%s - %s", c.name(), c.description()));
+                        })
+                        .onConfigOption(config -> {
+                            flushOutput();
+                            if (config.configOptions() != null) {
+                                config.configOptions().stream()
+                                        .filter(opt -> "model".equalsIgnoreCase(opt.id()))
+                                        .findFirst()
+                                        .ifPresent(opt -> logger.infof("Model changed: %s", opt.currentValue()));
+                            }
+                            logger.infof("[Config] %s", config.configOptions());
+                        })
+                        .onCurrentMode(mode -> {
+                            flushOutput();
+                            logger.infof("[Mode] %s", mode.currentModeId());
+                        })
+                        .onUsage(usage -> {
+                            flushOutput();
+                            logger.infof("[Usage] used=%s size=%s cost=%s", usage.used(), usage.size(), usage.cost());
+                        }))
+                .withPermissionMode(permissionMode)
                 .build()) {
 
-            // 4. Initialize -- handshake with the agent
-            var initResponse = client.initialize();
-            var agentInfo = initResponse.agentInfo();
-            String title = agentInfo.title();
-            String connectedMsg = (title != null && !title.isEmpty())
-                    ? String.format("Connected to the ACP agent: %s - v%s - %s", agentInfo.name(), agentInfo.version(), title)
-                    : String.format("Connected to the ACP agent: %s - v%s", agentInfo.name(), agentInfo.version());
-            logger.info(connectedMsg);
-            logger.infof("Protocol version: %s", initResponse.protocolVersion());
-            logger.debugf("Capabilities: %s", initResponse.agentCapabilities());
-            logger.debugf("Auth methods: %s", initResponse.authMethods());
+            // 4. Execute the ACP session workflow
+            AcpSessionResult result = client.workflow()
+                    .initialize()
+                    .onInitialized(init -> {
+                        var agentInfo = init.agentInfo();
+                        String title = agentInfo.title();
+                        String connectedMsg = (title != null && !title.isEmpty())
+                                ? String.format("Connected to the ACP agent: %s - v%s - %s",
+                                        agentInfo.name(), agentInfo.version(), title)
+                                : String.format("Connected to the ACP agent: %s - v%s",
+                                        agentInfo.name(), agentInfo.version());
+                        logger.info(connectedMsg);
+                        logger.infof("Protocol version: %s", init.protocolVersion());
+                        logger.debugf("Capabilities: %s", init.agentCapabilities());
+                        logger.debugf("Auth methods: %s", init.authMethods());
+                    })
+                    .newSession(cwd)
+                    .onSessionCreated(session -> {
+                        logger.infof("Session created: %s with CWD: %s", session.sessionId(), cwd);
+                        if (session.configOptions() != null) {
+                            session.configOptions().stream()
+                                    .filter(opt -> "model".equalsIgnoreCase(opt.id()))
+                                    .findFirst()
+                                    .ifPresent(opt -> logger.infof("Agent model: %s", opt.currentValue()));
+                        }
+                    })
+                    .model(model)
+                    .skill(skillPath)
+                    .prompt(prompt)
+                    .beforePrompt(() -> {
+                        logger.infof("Sending prompt: %s", prompt);
+                        invocation.println("Here is the AI response:");
+                    })
+                    .execute();
 
-            // 5. Create a session
-            var session = client.newSession(new NewSessionRequest(cwd, List.of()));
-            var sessionId = session.sessionId();
-            logger.infof("Session created: %s with CWD: %s", sessionId, cwd);
-
-            // Log the agent's default model from session config
-            if (session.configOptions() != null) {
-                session.configOptions().stream()
-                        .filter(opt -> "model".equalsIgnoreCase(opt.id()))
-                        .findFirst()
-                        .ifPresent(opt -> logger.infof("Agent model: %s", opt.currentValue()));
-            }
-
-            // 6. Set the model (only if explicitly provided)
-            if (model != null && !model.isEmpty()) {
-                try {
-                    var configResponse = client.setConfigOption(
-                            new SetSessionConfigOptionRequest("model", sessionId, model));
-                    if (configResponse.configOptions() != null) {
-                        configResponse.configOptions().stream()
-                                .filter(opt -> "model".equalsIgnoreCase(opt.id()))
-                                .findFirst()
-                                .ifPresent(opt -> logger.infof("Model set to: %s", opt.currentValue()));
-                    }
-                } catch (RuntimeException e) {
-                    if (e.getMessage() != null && e.getMessage().contains("-32601")) {
-                        logger.warnf("Agent does not support session/set_config_option -- skipping model configuration. "
-                                + "The agent will use its default model.");
-                    } else {
-                        throw e;
-                    }
-                }
-            }
-
-            // 7. Send a prompt enhanced with SKILL instructions as
-            // acp still don't support natively that feature: https://agentclientprotocol.com/rfds/additional-directories#does-acp-define-agents-skills-or-instruction-directory-conventions
-            skillPath = ProjectUtil.resolveValueWithPrecedence(skillPath, "SKILL_PATH", null);
-
-            // Resolve if skillPath is a Url. If this is a url fetch it under
-            // the global home path of the agents SKILLS: $HOME/.agents/skills
-            if (GitUtil.isUrl(skillPath)) {
-                try {
-                    skillPath = GitUtil.resolveFromUrl(skillPath).toString();
-                } catch (IOException e) {
-                    invocation.println("ERROR: Failed to resolve skill from URL: " + skillPath);
-                    invocation.println("       " + e.getMessage());
-                    return CommandResult.FAILURE;
-                }
-            }
-
-            String effectivePrompt = prompt;
-            if (skillPath != null) {
-                effectivePrompt = prompt + "\n\nPlease read the skill: " + skillPath + " and follow its instructions.";
-            }
-            logger.infof("Sending prompt: %s", effectivePrompt);
-            invocation.println("Here is the AI response:");
-            var response = client.prompt(new PromptRequest(
-                    List.of(new TextContent(effectivePrompt)),
-                    sessionId));
-
-            flushThoughts();
-            if (messageOutputPending) {
-                // TODO: Migration required -- System.out.println() used here because session update
-                // callbacks (handleSessionUpdate) write directly to System.out and this newline
-                // must go to the same stream for correct interleaving.
-                System.out.println();
-                messageOutputPending = false;
-            }
-            logger.infof("Done! Stop reason: %s", response.stopReason());
-
-            // 8. Close the session to free agent-side resources
-            client.closeSession(new CloseSessionRequest(sessionId));
+            flushOutput();
+            logger.infof("Done! Stop reason: %s", result.stopReason());
 
             return CommandResult.SUCCESS;
         } catch (Exception e) {
@@ -366,65 +369,13 @@ public class AcpCommand implements Command<CommandInvocation> {
         return model;
     }
 
-    // -- Session update handling ----
-    // NOTE: These handlers use System.out.print/println because they are invoked as callbacks
-    // from the ACP client transport layer, where CommandInvocation is not available.
-    // Refactoring to use invocation.println() would require changes to the ACP client API.
+    // -- Output helpers ----
 
-    private void handleSessionUpdate(String updateType, Object update) {
-        if (update == null) {
-            logger.debug("[Update] null");
-            return;
-        }
-
-        if (!"agent_thought_chunk".equals(updateType)) {
-            flushThoughts();
-        }
-
-        if (!"agent_message_chunk".equals(updateType) && messageOutputPending) {
+    private void flushOutput() {
+        flushThoughts();
+        if (messageOutputPending) {
             System.out.println();
             messageOutputPending = false;
-        }
-
-        switch (update) {
-            case ContentChunk chunk -> {
-                if ("agent_thought_chunk".equals(updateType)) {
-                    thoughtBuffer.append(extractText(chunk.content()));
-                } else {
-                    System.out.print(extractText(chunk.content()));
-                    messageOutputPending = true;
-                }
-            }
-            case Plan plan -> {
-                logger.infof("[Plan] %d steps:", plan.entries().size());
-                plan.entries().forEach(e -> logger.infof("  - %s [%s]", e.content(), e.status()));
-            }
-            case ToolCall tool ->
-                logger.infof("[ToolCall] %s (%s) - %s", tool.title(), tool.kind(), tool.status());
-            case ToolCallUpdate toolUpdate ->
-                logger.infof("[ToolUpdate] %s - %s", toolUpdate.title(), toolUpdate.status());
-            case AvailableCommandsUpdate commands -> {
-                logger.debug("[Agent Commands] available:");
-                commands.availableCommands()
-                        .forEach(c -> logger.debugf("  /%s - %s", c.name(), c.description()));
-            }
-            case ConfigOptionUpdate configUpdate -> {
-                if (configUpdate.configOptions() != null) {
-                    configUpdate.configOptions().stream()
-                            .filter(opt -> "model".equalsIgnoreCase(opt.id()))
-                            .findFirst()
-                            .ifPresent(opt -> logger.infof("Model changed: %s", opt.currentValue()));
-                }
-                logger.infof("[Config] %s", configUpdate.configOptions());
-            }
-            case CurrentModeUpdate mode -> logger.infof("[Mode] %s", mode.currentModeId());
-            default -> {
-                if ("usage_update".equals(updateType) && update instanceof Map<?, ?> map) {
-                    logger.infof("[Usage] used=%s size=%s cost=%s", map.get("used"), map.get("size"), map.get("cost"));
-                } else {
-                    logger.infof("[Update] %s: %s", updateType, update);
-                }
-            }
         }
     }
 
@@ -441,27 +392,6 @@ public class AcpCommand implements Command<CommandInvocation> {
             return text != null ? text.toString() : content.toString();
         }
         return content != null ? content.toString() : "";
-    }
-
-    // -- Permission handling ----
-
-    private static RequestPermissionResponse handlePermissionRequest(RequestPermissionRequest request, String permissionMode) {
-        var toolCall = request.toolCall();
-        logger.infof("[Permission] %s requests: %s", toolCall.title(), toolCall.kind());
-
-        String selectedOptionId = request.options().stream()
-                .filter(o -> o.kind().getValue().equals(permissionMode))
-                .findFirst()
-                .map(PermissionOption::optionId)
-                .orElseGet(() -> request.options().stream()
-                        .filter(o -> o.kind() == PermissionOptionKind.ALLOW_ALWAYS
-                                || o.kind() == PermissionOptionKind.ALLOW_ONCE)
-                        .findFirst()
-                        .map(PermissionOption::optionId)
-                        .orElse(request.options().getFirst().optionId()));
-
-        logger.infof("[Permission] Responded with: %s", permissionMode);
-        return new RequestPermissionResponse(new SelectedPermissionOutcome(selectedOptionId));
     }
 
     // -- Provider env-var validation ----
