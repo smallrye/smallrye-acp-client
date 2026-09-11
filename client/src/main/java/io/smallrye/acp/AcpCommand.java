@@ -18,6 +18,7 @@ import io.smallrye.acp.registry.RegistryCommand;
 import io.smallrye.acp.toolbox.GitUtil;
 import io.smallrye.acp.toolbox.ProjectUtil;
 import io.smallrye.agentclientprotocol.sdk.client.AcpClient;
+import io.smallrye.agentclientprotocol.sdk.client.AcpSessionResult;
 import io.smallrye.agentclientprotocol.sdk.client.AcpSyncClient;
 import io.smallrye.agentclientprotocol.sdk.client.transport.AgentParameters;
 import io.smallrye.agentclientprotocol.sdk.client.transport.StdioAcpClientTransport;
@@ -101,8 +102,8 @@ public class AcpCommand implements Command<CommandInvocation> {
     @Option(name = "request-timeout", description = "Timeout in seconds for requests (initialize, create session, etc.) [env: ACP_REQUEST_TIMEOUT]")
     Integer requestTimeout;
 
-    @Option(name = "prompt-timeout", description = "Timeout in seconds for prompt requests; 0 means no timeout [env: ACP_PROMPT_TIMEOUT]")
-    Integer promptTimeout;
+    @Option(name = "prompt-request-timeout", description = "Timeout in seconds for prompt requests; 0 means no timeout [env: ACP_PROMPT_REQUEST_TIMEOUT]")
+    Integer promptRequestTimeout;
 
     @Option(name = "permission-mode", description = "How to respond to agent permission requests: allow_always, allow_once, reject_once, reject_always [env: ACP_PERMISSION_MODE]")
     String permissionMode;
@@ -194,11 +195,13 @@ public class AcpCommand implements Command<CommandInvocation> {
                 "ACP_REQUEST_TIMEOUT", "30");
         Duration reqTimeout = Duration.ofSeconds(Long.parseLong(reqTimeoutStr));
 
-        String promptTimeoutStr = ProjectUtil.resolveValueWithPrecedence(
-                promptTimeout != null ? promptTimeout.toString() : null,
-                "ACP_PROMPT_TIMEOUT", "0");
-        long promptTimeoutSecs = Long.parseLong(promptTimeoutStr);
-        Duration pTimeout = promptTimeoutSecs > 0 ? Duration.ofSeconds(promptTimeoutSecs) : null;
+        String promptRequestTimeoutStr = ProjectUtil.resolveValueWithPrecedence(
+                promptRequestTimeout != null ? promptRequestTimeout.toString() : null,
+                "ACP_PROMPT_REQUEST_TIMEOUT", "0");
+        long promptRequestTimeoutSecs = Long.parseLong(promptRequestTimeoutStr);
+        Duration pRequestTimeout = promptRequestTimeoutSecs > 0
+                ? Duration.ofSeconds(promptRequestTimeoutSecs)
+                : Duration.ZERO;
 
         // 0. Check for required env variables based on agent + provider
         checkProviderEnv(agent, provider);
@@ -220,6 +223,18 @@ public class AcpCommand implements Command<CommandInvocation> {
         }
         final String cwd = sessionCwd;
 
+        // 0d. Resolve skill path (URL → local path if needed)
+        skillPath = ProjectUtil.resolveValueWithPrecedence(skillPath, "SKILL_PATH", null);
+        if (GitUtil.isUrl(skillPath)) {
+            try {
+                skillPath = GitUtil.resolveFromUrl(skillPath).toString();
+            } catch (IOException e) {
+                invocation.println("ERROR: Failed to resolve skill from URL: " + skillPath);
+                invocation.println("       " + e.getMessage());
+                return CommandResult.FAILURE;
+            }
+        }
+
         // 1. Configure agent parameters
         var paramBuilder = AgentParameters.builder(binary);
         if (args != null && !args.isEmpty()) {
@@ -235,104 +250,61 @@ public class AcpCommand implements Command<CommandInvocation> {
         // 2. Create transport
         var transport = new StdioAcpClientTransport(params);
 
-        // 3. Build sync client with session update consumer and permission handler
+        // 3. Build sync client with fluent API
         final String permMode = permissionMode;
         try (AcpSyncClient client = AcpClient.sync(transport)
-                .requestTimeout(reqTimeout)
-                .promptTimeout(pTimeout)
-                .sessionUpdateConsumer(notification -> {
+                .withRequestTimeout(reqTimeout)
+                .withPromptRequestTimeout(pRequestTimeout)
+                .onSessionUpdate(notification -> {
                     String updateType = notification.meta() != null
                             ? (String) notification.meta().get("sessionUpdate")
                             : null;
                     handleSessionUpdate(updateType, notification.update());
                 })
-                .permissionRequestHandler(request -> handlePermissionRequest(request, permMode))
+                .withPermission(request -> handlePermissionRequest(request, permMode))
                 .build()) {
 
-            // 4. Initialize -- handshake with the agent
-            var initResponse = client.initialize();
-            var agentInfo = initResponse.agentInfo();
-            String title = agentInfo.title();
-            String connectedMsg = (title != null && !title.isEmpty())
-                    ? String.format("Connected to the ACP agent: %s - v%s - %s", agentInfo.name(), agentInfo.version(), title)
-                    : String.format("Connected to the ACP agent: %s - v%s", agentInfo.name(), agentInfo.version());
-            logger.info(connectedMsg);
-            logger.infof("Protocol version: %s", initResponse.protocolVersion());
-            logger.debugf("Capabilities: %s", initResponse.agentCapabilities());
-            logger.debugf("Auth methods: %s", initResponse.authMethods());
-
-            // 5. Create a session
-            var session = client.newSession(new NewSessionRequest(cwd, List.of()));
-            var sessionId = session.sessionId();
-            logger.infof("Session created: %s with CWD: %s", sessionId, cwd);
-
-            // Log the agent's default model from session config
-            if (session.configOptions() != null) {
-                session.configOptions().stream()
-                        .filter(opt -> "model".equalsIgnoreCase(opt.id()))
-                        .findFirst()
-                        .ifPresent(opt -> logger.infof("Agent model: %s", opt.currentValue()));
-            }
-
-            // 6. Set the model (only if explicitly provided)
-            if (model != null && !model.isEmpty()) {
-                try {
-                    var configResponse = client.setConfigOption(
-                            new SetSessionConfigOptionRequest("model", sessionId, model));
-                    if (configResponse.configOptions() != null) {
-                        configResponse.configOptions().stream()
-                                .filter(opt -> "model".equalsIgnoreCase(opt.id()))
-                                .findFirst()
-                                .ifPresent(opt -> logger.infof("Model set to: %s", opt.currentValue()));
-                    }
-                } catch (RuntimeException e) {
-                    if (e.getMessage() != null && e.getMessage().contains("-32601")) {
-                        logger.warnf("Agent does not support session/set_config_option -- skipping model configuration. "
-                                + "The agent will use its default model.");
-                    } else {
-                        throw e;
-                    }
-                }
-            }
-
-            // 7. Send a prompt enhanced with SKILL instructions as
-            // acp still don't support natively that feature: https://agentclientprotocol.com/rfds/additional-directories#does-acp-define-agents-skills-or-instruction-directory-conventions
-            skillPath = ProjectUtil.resolveValueWithPrecedence(skillPath, "SKILL_PATH", null);
-
-            // Resolve if skillPath is a Url. If this is a url fetch it under
-            // the global home path of the agents SKILLS: $HOME/.agents/skills
-            if (GitUtil.isUrl(skillPath)) {
-                try {
-                    skillPath = GitUtil.resolveFromUrl(skillPath).toString();
-                } catch (IOException e) {
-                    invocation.println("ERROR: Failed to resolve skill from URL: " + skillPath);
-                    invocation.println("       " + e.getMessage());
-                    return CommandResult.FAILURE;
-                }
-            }
-
-            String effectivePrompt = prompt;
-            if (skillPath != null) {
-                effectivePrompt = prompt + "\n\nPlease read the skill: " + skillPath + " and follow its instructions.";
-            }
-            logger.infof("Sending prompt: %s", effectivePrompt);
-            invocation.println("Here is the AI response:");
-            var response = client.prompt(new PromptRequest(
-                    List.of(new TextContent(effectivePrompt)),
-                    sessionId));
+            // 4. Execute the ACP session workflow
+            AcpSessionResult result = client.workflow()
+                    .initialize()
+                    .onInitialized(init -> {
+                        var agentInfo = init.agentInfo();
+                        String title = agentInfo.title();
+                        String connectedMsg = (title != null && !title.isEmpty())
+                                ? String.format("Connected to the ACP agent: %s - v%s - %s",
+                                        agentInfo.name(), agentInfo.version(), title)
+                                : String.format("Connected to the ACP agent: %s - v%s",
+                                        agentInfo.name(), agentInfo.version());
+                        logger.info(connectedMsg);
+                        logger.infof("Protocol version: %s", init.protocolVersion());
+                        logger.debugf("Capabilities: %s", init.agentCapabilities());
+                        logger.debugf("Auth methods: %s", init.authMethods());
+                    })
+                    .newSession(cwd)
+                    .onSessionCreated(session -> {
+                        logger.infof("Session created: %s with CWD: %s", session.sessionId(), cwd);
+                        if (session.configOptions() != null) {
+                            session.configOptions().stream()
+                                    .filter(opt -> "model".equalsIgnoreCase(opt.id()))
+                                    .findFirst()
+                                    .ifPresent(opt -> logger.infof("Agent model: %s", opt.currentValue()));
+                        }
+                    })
+                    .model(model)
+                    .skill(skillPath)
+                    .prompt(prompt)
+                    .beforePrompt(() -> {
+                        logger.infof("Sending prompt: %s", prompt);
+                        invocation.println("Here is the AI response:");
+                    })
+                    .execute();
 
             flushThoughts();
             if (messageOutputPending) {
-                // TODO: Migration required -- System.out.println() used here because session update
-                // callbacks (handleSessionUpdate) write directly to System.out and this newline
-                // must go to the same stream for correct interleaving.
                 System.out.println();
                 messageOutputPending = false;
             }
-            logger.infof("Done! Stop reason: %s", response.stopReason());
-
-            // 8. Close the session to free agent-side resources
-            client.closeSession(new CloseSessionRequest(sessionId));
+            logger.infof("Done! Stop reason: %s", result.stopReason());
 
             return CommandResult.SUCCESS;
         } catch (Exception e) {

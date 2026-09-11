@@ -22,14 +22,21 @@ import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
  *
  * <pre>{@code
  * try (AcpSyncClient client = AcpClient.sync(transport)
- *         .sessionUpdateConsumer(n -> handleUpdate(n.update()))
+ *         .onAgentMessage(chunk -> System.out.print(extractText(chunk.content())))
+ *         .onToolCall(tc -> logger.info("[ToolCall] " + tc.title()))
+ *         .withPermissionHandler(request -> handlePermission(request))
  *         .build()) {
- *     var init = client.initialize();
- *     var session = client.newSession(new NewSessionRequest(".", List.of()));
- *     var response = client.prompt(new PromptRequest(
- *             List.of(new TextContent("Hello")), session.sessionId()));
- *     // Close the session to free agent-side resources
- *     client.closeSession(new CloseSessionRequest(session.sessionId()));
+ *
+ *     // Fluent workflow API
+ *     AcpSessionResult result = client.workflow()
+ *             .initialize()
+ *             .newSession("/workspace")
+ *             .model("claude-opus-4-6")
+ *             .prompt("Say hello")
+ *             .execute();
+ *
+ *     System.out.println("Agent: " + result.agentInfo().name());
+ *     System.out.println("Stop reason: " + result.stopReason());
  * }
  * }</pre>
  *
@@ -142,6 +149,32 @@ public class AcpSyncClient implements AutoCloseable {
      */
     public void cancel(CancelNotification notification) {
         await(delegate.cancel(notification));
+    }
+
+    // ===== Workflow =====
+
+    /**
+     * Creates a fluent workflow builder for the common session lifecycle:
+     * initialize, create session, configure model, send prompt, close session.
+     *
+     * <p>
+     * Example:
+     *
+     * <pre>{@code
+     * AcpSessionResult result = client.workflow()
+     *         .initialize()
+     *         .newSession("/workspace")
+     *         .model("claude-opus-4-6")
+     *         .prompt("Say hello")
+     *         .execute();
+     * }</pre>
+     *
+     * @return a new {@link AcpSessionWorkflow}
+     * @see AcpSessionWorkflow
+     * @see AcpSessionResult
+     */
+    public AcpSessionWorkflow workflow() {
+        return new AcpSessionWorkflow(this);
     }
 
     // ===== Helpers =====

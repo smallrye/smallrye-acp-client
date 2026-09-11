@@ -65,7 +65,7 @@ public class AcpAsyncClient {
     private final StdioAcpClientTransport transport;
     private final ObjectMapper mapper;
     private final Duration requestTimeout;
-    private final Duration promptTimeout;
+    private final Duration promptRequestTimeout;
     private final Consumer<SessionNotification> sessionUpdateConsumer;
     private final Function<RequestPermissionRequest, RequestPermissionResponse> permissionRequestHandler;
 
@@ -78,12 +78,12 @@ public class AcpAsyncClient {
     });
 
     AcpAsyncClient(StdioAcpClientTransport transport, Duration requestTimeout,
-            Duration promptTimeout, Consumer<SessionNotification> sessionUpdateConsumer,
+            Duration promptRequestTimeout, Consumer<SessionNotification> sessionUpdateConsumer,
             Function<RequestPermissionRequest, RequestPermissionResponse> permissionRequestHandler) {
         this.transport = transport;
         this.mapper = transport.getMapper();
         this.requestTimeout = requestTimeout;
-        this.promptTimeout = promptTimeout;
+        this.promptRequestTimeout = promptRequestTimeout;
         this.sessionUpdateConsumer = sessionUpdateConsumer;
         this.permissionRequestHandler = permissionRequestHandler;
 
@@ -159,8 +159,8 @@ public class AcpAsyncClient {
      * @return a {@link CompletableFuture} emitting the stop reason when the agent finishes
      */
     public CompletableFuture<PromptResponse> prompt(PromptRequest request) {
-        CompletableFuture<JsonNode> future = (promptTimeout != null)
-                ? sendRequest("session/prompt", request, promptTimeout)
+        CompletableFuture<JsonNode> future = (!promptRequestTimeout.isZero())
+                ? sendRequest("session/prompt", request, promptRequestTimeout)
                 : sendRequestNoTimeout("session/prompt", request);
         return future.thenApply(result -> mapper.convertValue(result, PromptResponse.class));
     }

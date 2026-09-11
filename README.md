@@ -2,20 +2,18 @@
 
 The [Agent Client Protocol](https://agentclientprotocol.com/) (ACP) is an open standard for communication between clients and AI coding agents. It defines a JSON-RPC 2.0-based protocol over stdio that lets clients initialize sessions, send prompts, receive streamed updates (thoughts, messages, tool calls, plans), and manage the agent lifecycle.
 
-This project is a Java library for ACP, built with standard `java.util.concurrent` APIs (`CompletableFuture`, `ScheduledExecutorService`) for async operations and [Jackson](https://github.com/FasterXML/jackson) for JSON processing. It provides both synchronous and asynchronous APIs to interact with any ACP-compatible agent (e.g. [OpenCode](https://opencode.ai/)) using stdio.
+This project is a Java library for ACP, built with standard `java.util.concurrent` APIs (`CompletableFuture`, `ScheduledExecutorService`) for async operations and [Jackson](https://github.com/FasterXML/jackson) for JSON processing. It provides both synchronous and asynchronous APIs to interact with any ACP-compatible agent (e.g. [OpenCode](https://opencode.ai/), [Claude Code](https://www.npmjs.com/package/@agentclientprotocol/claude-agent-acp), [Pi](https://github.com/svkozak/pi-acp), [Gemini](https://geminicli.com/)) using stdio.
 
 The project implements the [ACP Schema Specification v1](https://agentclientprotocol.com/specification). The JSON schema definition is bundled at `schema/src/main/resources/schema/acp/v1/schema.json` and Java records are generated from it using `JSonSchemaGenerator` (a custom code generator included in the `schema` module). See [CONTRIBUTING.md](CONTRIBUTING.md) for details on regenerating schema classes.
 
 ## Project structure
 
-The project is organized as a multi-module Maven build:
-
 | Module     | Artifact ID      | Description                                                                                                      |
 |------------|------------------|------------------------------------------------------------------------------------------------------------------|
 | `schema`   | `acp-schema`     | ACP JSON Schema (`v1`), generated Java records/enums, and `JSonSchemaGenerator` code generator                   |
 | `registry` | `acp-registry`   | Agent registry: discovery, installation (binary/npx/uvx) and resolution of ACP agents                           |
-| `core`     | `acp-core`       | ACP implementation library: `AcpClient`, `AcpAsyncClient`, `AcpSyncClient`, stdio transport. Depends on `schema` |
-| `client`   | `acp-client`     | Aesh CLI (`AcpAgentCommand`), skills, and sandbox. Depends on `core` and `registry`. Built as Quarkus uber-jar   |
+| `core`     | `acp-core`       | ACP client library: fluent builder, session workflow, notification router, stdio transport                       |
+| `client`   | `acp-client`     | Aesh CLI (`AcpCommand`), skills, and sandbox. Depends on `core` and `registry`. Built as Quarkus uber-jar        |
 
 ## Prerequisites
 
@@ -31,15 +29,194 @@ Compile the project and build the uber-jar:
 mvn clean install
 ```
 
-## Usage
+## Core library
 
-### Running with `java -jar` build
+The `core` module (`acp-core`) provides a fluent Java API to build ACP clients, configure notification handling, and run the full session lifecycle.
 
-Export in your terminal the current version from the project's cloned
+### Creating a client
+
+Use `AcpClient.sync()` or `AcpClient.async()` to create a builder. The builder supports fluent configuration of timeouts, typed notification handlers, and permission handling.
+
+```java
+var transport = new StdioAcpClientTransport(agentParams);
+
+try (AcpSyncClient client = AcpClient.sync(transport)
+        .withRequestTimeout(Duration.ofSeconds(30))
+        .withPromptRequestTimeout(Duration.ZERO)
+        .withNotifications(n -> n
+            .onAgentMessage(chunk -> System.out.print(extractText(chunk.content())))
+            .onAgentThought(chunk -> logger.debug("[Thought] " + extractText(chunk.content())))
+            .onToolCall(tc -> logger.info("[ToolCall] " + tc.title() + " - " + tc.status()))
+            .onToolCallUpdate(tcu -> logger.info("[ToolUpdate] " + tcu.title() + " - " + tcu.status()))
+            .onPlan(plan -> plan.entries().forEach(e -> logger.info("  - " + e.content())))
+            .onUsage(usage -> logger.info("[Usage] used=" + usage.used() + " cost=" + usage.cost())))
+        .withPermission(request -> handlePermission(request))
+        .build()) {
+    // client is connected and ready
+}
+```
+
+#### Builder options
+
+| Method | Description | Default |
+|--------|-------------|---------|
+| `withRequestTimeout(Duration)` | Timeout for JSON-RPC requests (initialize, session, config) | 30 seconds |
+| `withPromptRequestTimeout(Duration)` | Timeout for prompt requests; `Duration.ZERO` means no timeout | `Duration.ZERO` |
+| `withNotifications(Consumer<NotificationRouter>)` | Typed notification handlers (see below) | none |
+| `onSessionUpdate(Consumer<SessionNotification>)` | Raw consumer for all session notifications | none |
+| `withPermission(Function<RequestPermissionRequest, RequestPermissionResponse>)` | Handler for agent permission requests | auto-accept |
+
+### Notification handling
+
+Session updates streamed during prompt processing are dispatched to typed handlers registered via `withNotifications()`. Each handler receives a strongly-typed object:
+
+```java
+.withNotifications(n -> n
+    .onAgentMessage(chunk -> { /* ContentChunk */ })
+    .onAgentThought(chunk -> { /* ContentChunk */ })
+    .onUserMessage(chunk -> { /* ContentChunk */ })
+    .onToolCall(tc -> { /* ToolCall: title, kind, status */ })
+    .onToolCallUpdate(tcu -> { /* ToolCallUpdate: title, status */ })
+    .onPlan(plan -> { /* Plan: entries with content and status */ })
+    .onAvailableCommands(cmds -> { /* AvailableCommandsUpdate */ })
+    .onCurrentMode(mode -> { /* CurrentModeUpdate: currentModeId */ })
+    .onConfigOption(config -> { /* ConfigOptionUpdate: configOptions */ })
+    .onSessionInfo(info -> { /* SessionInfoUpdate */ })
+    .onUsage(usage -> { /* UsageUpdate: used, size, cost */ }))
+```
+
+For advanced use cases requiring access to the raw notification (e.g. cross-cutting concerns between update types), use `onSessionUpdate()` instead of or in addition to typed handlers. When both are registered, typed handlers fire first, then the raw consumer fires for every notification.
+
+### Session workflow
+
+The `AcpSessionWorkflow` provides a fluent API for the common session lifecycle: **initialize** the agent, **create a session**, optionally **set the model** and **skill**, then **send a prompt**. The session is automatically closed when the workflow completes.
+
+```java
+AcpSessionResult result = client.workflow()
+        .initialize()
+        .newSession("/path/to/workspace")
+        .model("claude-opus-4-6")
+        .skill("/path/to/skill")
+        .prompt("Refactor the service layer")
+        .execute();
+```
+
+The workflow returns an `AcpSessionResult` containing all intermediate responses:
+
+```java
+// Agent metadata from the initialization handshake
+Implementation agentInfo = result.agentInfo();
+logger.info("Agent: " + agentInfo.name() + " v" + agentInfo.version());
+
+// Session ID
+String sessionId = result.sessionId();
+
+// Effective config options (from model override or session defaults)
+List<SessionConfigOption> options = result.configOptions();
+
+// Prompt completion
+StopReason stopReason = result.stopReason();
+logger.info("Done! Stop reason: " + stopReason);
+
+// Access full response objects for deeper inspection
+InitializeResponse init = result.initializeResponse();
+NewSessionResponse session = result.newSessionResponse();
+PromptResponse prompt = result.promptResponse();
+```
+
+#### Workflow steps
+
+| Method | Required | Description |
+|--------|----------|-------------|
+| `initialize()` | yes | Performs the ACP handshake with the agent |
+| `newSession(String cwd)` | yes | Creates a session with the given workspace directory |
+| `additionalDirectories(List)` | no | Exposes additional directories to the agent |
+| `model(String)` | no | Sets the model (e.g. `"claude-opus-4-6"`). Silently skipped if the agent doesn't support config options |
+| `skill(String)` | no | Appends skill instructions to the prompt |
+| `prompt(String)` | yes | Sets the prompt text to send |
+| `execute()` | -- | Runs the workflow and returns `AcpSessionResult` |
+
+#### Lifecycle callbacks
+
+For real-time logging or progress feedback between workflow steps, register callbacks:
+
+```java
+AcpSessionResult result = client.workflow()
+        .initialize()
+        .onInitialized(init -> {
+            logger.info("Connected to: " + init.agentInfo().name());
+            logger.info("Protocol version: " + init.protocolVersion());
+        })
+        .newSession(cwd)
+        .onSessionCreated(session -> {
+            logger.info("Session: " + session.sessionId());
+        })
+        .model("claude-opus-4-6")
+        .skill("/path/to/skill")
+        .prompt("Say hello")
+        .beforePrompt(() -> System.out.println("Waiting for response..."))
+        .execute();
+```
+
+| Callback | When it fires |
+|----------|---------------|
+| `onInitialized(Consumer<InitializeResponse>)` | After the handshake completes |
+| `onSessionCreated(Consumer<NewSessionResponse>)` | After the session is created |
+| `beforePrompt(Runnable)` | Right before the prompt is sent |
+
+### Using the raw client API
+
+For advanced scenarios (multiple prompts per session, cancellation, custom initialization), use the lower-level `AcpSyncClient` methods directly:
+
+```java
+try (AcpSyncClient client = AcpClient.sync(transport)
+        .withNotifications(n -> n.onAgentMessage(chunk -> System.out.print(text)))
+        .build()) {
+
+    var init = client.initialize();
+    var session = client.newSession(new NewSessionRequest("/workspace", List.of()));
+
+    // Send multiple prompts in the same session
+    var response1 = client.prompt(new PromptRequest(
+            List.of(new TextContent("Create a REST endpoint")), session.sessionId()));
+    var response2 = client.prompt(new PromptRequest(
+            List.of(new TextContent("Now add tests for it")), session.sessionId()));
+
+    client.closeSession(new CloseSessionRequest(session.sessionId()));
+}
+```
+
+### Async client
+
+For non-blocking composition using `CompletableFuture`:
+
+```java
+AcpAsyncClient client = AcpClient.async(transport)
+        .withNotifications(n -> n.onToolCall(tc -> logger.info(tc.title())))
+        .build();
+
+client.connect()
+    .thenCompose(v -> client.initialize())
+    .thenCompose(init -> client.newSession(new NewSessionRequest("/workspace", List.of())))
+    .thenCompose(session -> client.prompt(
+            new PromptRequest(List.of(new TextContent("Hello")), session.sessionId())))
+    .thenAccept(response -> logger.info("Done: " + response.stopReason()))
+    .join();
+
+client.closeGracefully().join();
+```
+
+## ACP CLI
+
+The `client` module provides a CLI tool (`acp`) built on the core library. It wraps the fluent API into a single command that connects to any ACP-compatible agent, runs a prompt, and streams the output to the console.
+
+### Running with `java -jar`
+
+Export the current version from the project's clone:
 ```shell
 export VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
 ```
-Next, execute one of the following commands
+Then execute one of the following commands:
 ```shell
 # Default prompt: "Say Hello" with OpenCode agent
 java -jar client/target/acp-java-client-${VERSION}-runner.jar
@@ -49,7 +226,7 @@ java -jar client/target/acp-java-client-${VERSION}-runner.jar --prompt "What is 
 
 # With a specific agent, provider, and model
 java -jar client/target/acp-java-client-${VERSION}-runner.jar \
-  --agent claude \
+  --agent claude-acp \
   --provider vertex-ai \
   --model claude-opus-4-6 \
   --prompt "Say hello"
@@ -57,21 +234,21 @@ java -jar client/target/acp-java-client-${VERSION}-runner.jar \
 
 ### Running with JBang
 
-A [JBang catalog](https://www.jbang.dev/documentation/guide/latest/alias_catalogs.html) is provided at the project root and that you can use when you develop/test. After building:
+A [JBang catalog](https://www.jbang.dev/documentation/guide/latest/alias_catalogs.html) is provided at the project root. After building:
 
 ```shell
-# Run from the project root using the local catalog and uber jar generated under client/target/ !
+# Run from the project root using the local catalog and uber jar generated under client/target/
 jbang acp --prompt "What is 6+6?"
 ```
 
-If you plan to use the tool outside of this project, then install it using the maven GAV and with a released version !
+To install the tool for use outside this project, use the Maven GAV with a released version:
 ```shell
 jbang app install --name acp io.smallrye.ai:acp-java-client:0.1.0:runner
 
 cd /java/project/to/code/using/ai
 acp --prompt "Say hello"
 ```
-The command supports to generate the autocompletion bash script:
+The command supports autocompletion:
 ```shell
 source <(acp generate-completion)
 ```
@@ -87,48 +264,48 @@ mvn quarkus:dev -pl client -Dquarkus.args="--prompt 'Say Hello'"
 ```shell
 11:11:57,492 INFO  [StdioAcpClientTransport] ACP agent starting
 11:11:57,522 INFO  [StdioAcpClientTransport] ACP agent started
-11:11:58,435 INFO  [AcpAgentCommand] Connected to the ACP agent: OpenCode - v1.15.4
-11:11:58,613 INFO  [AcpAgentCommand] Session created: ses_1b631ae8bffegMSoAYKMCI6cUc
-11:11:58,619 INFO  [AcpAgentCommand] [Commands] Available:
-11:11:58,622 INFO  [AcpAgentCommand] Model: opencode/big-pickle
-11:11:58,623 INFO  [AcpAgentCommand] Sending prompt: Say Hello
+11:11:58,435 INFO  [AcpCommand] Connected to the ACP agent: OpenCode - v1.15.4
+11:11:58,613 INFO  [AcpCommand] Session created: ses_1b631ae8bffegMSoAYKMCI6cUc
+11:11:58,619 INFO  [AcpCommand] [Commands] Available:
+11:11:58,622 INFO  [AcpCommand] Model: opencode/big-pickle
+11:11:58,623 INFO  [AcpCommand] Sending prompt: Say Hello
 Here is the AI response:
 Hello
-11:12:00,661 INFO  [AcpAgentCommand] [Usage] used=8081 size=200000 cost={amount=0, currency=USD}
-11:12:00,665 INFO  [AcpAgentCommand] Done! Stop reason: END_TURN
+11:12:00,661 INFO  [AcpCommand] [Usage] used=8081 size=200000 cost={amount=0, currency=USD}
+11:12:00,665 INFO  [AcpCommand] Done! Stop reason: END_TURN
 11:12:00,676 INFO  [StdioAcpClientTransport] ACP agent process stopped (exit code 143)
 ```
 
-## CLI commands
+### CLI options
 
 Man pages for all commands and subcommands are available in the [docs/](docs/) directory.
 
-The following table is indicative and show for the acp client top command how you can configure the options or the corresponding environment variables. Precedence: **CLI argument > environment variable > default value**.
+Precedence: **CLI argument > environment variable > default value**.
 
-| Option                      | Env Variable              | Description                                                                                                                                                            | Default                      |
-|-----------------------------|---------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------|
-| `-a`, `--agent`             | `ACP_AGENT`               | ACP compatible agent id (see registry list)                                                                                                                            | `opencode`                   |
-| `-p`, `--prompt`            | `ACP_PROMPT`              | The prompt text to send to the agent                                                                                                                                   | `Say Hello`                  |
-| `--provider`                | `ACP_PROVIDER`            | Provider: `zen`, `vertex-ai`                                                                                                                                           | `zen`                        |
-| `-m`, `--model`             | `ACP_MODEL`               | The model to use, e.g. `claude-opus-4-6` (resolved per agent/provider)                                                                                                 |                              |
-| `--agent-binary`            | `ACP_AGENT_BINARY`        | Override agent binary path (for custom agents)                                                                                                                         |                              |
-| `--agent-args`              | `ACP_AGENT_ARGS`          | Override agent arguments (for custom agents)                                                                                                                           |                              |
-| `--request-timeout`         | `ACP_REQUEST_TIMEOUT`     | Timeout in seconds for steps: initialize, create session, etc.                                                                                                         | `30`                         |
-| `--prompt-timeout`          | `ACP_PROMPT_TIMEOUT`      | Timeout in seconds for prompt requests; 0 means no timeout                                                                                                             | `0`                          |
-| `--permission-mode`         | `ACP_PERMISSION_MODE`     | How to respond to agent permission requests (see below)                                                                                                                | `allow_always`               |
-| `-b`, `--backup`            | `ACP_BACKUP`              | Backup workspace to `target/workdirs` before running: `yes`, `no`. Only applies to Maven/Gradle projects. When enabled, the session CWD is set to the backup directory | `yes`                        |
-| `--backup-project-name`     | `ACP_BACKUP_PROJECT_NAME` | Name of the project used in the backup directory: `target/workdirs/<name>_<timestamp>`                                                                                 | `.` (current directory name) |
-| `--wks`, `--workspace-path` | `WORKSPACE_PATH`          | Absolute path to the project/workspace directory used as CWD for the session. If not set, defaults to the directory where the command is executed                      | current directory            |
-| `-l`, `--log-level`         | `ACP_LOG_LEVEL`           | Log level: `INFO`, `DEBUG`, `TRACE`, `WARNING`, `SEVERE`                                                                                                               | `INFO`                       |
-| `-h`, `--help`              |                           | Show help message and exit                                                                                                                                             |                              |
-| `-V`, `--version`           |                           | Print version info and exit                                                                                                                                            |                              |
+| Option                      | Env Variable                  | Description                                                                                                                                                            | Default                      |
+|-----------------------------|-------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------|
+| `-a`, `--agent`             | `ACP_AGENT`                   | ACP compatible agent id (see registry list)                                                                                                                            | `opencode`                   |
+| `-p`, `--prompt`            | `ACP_PROMPT`                  | The prompt text to send to the agent                                                                                                                                   | `Say Hello`                  |
+| `--provider`                | `ACP_PROVIDER`                | Provider: `zen`, `vertex-ai`                                                                                                                                           | `zen`                        |
+| `-m`, `--model`             | `ACP_MODEL`                   | The model to use, e.g. `claude-opus-4-6` (resolved per agent/provider)                                                                                                 |                              |
+| `--agent-binary`            | `ACP_AGENT_BINARY`            | Override agent binary path (for custom agents)                                                                                                                         |                              |
+| `--agent-args`              | `ACP_AGENT_ARGS`              | Override agent arguments (for custom agents)                                                                                                                           |                              |
+| `--request-timeout`         | `ACP_REQUEST_TIMEOUT`         | Timeout in seconds for steps: initialize, create session, etc.                                                                                                         | `30`                         |
+| `--prompt-request-timeout`  | `ACP_PROMPT_REQUEST_TIMEOUT`  | Timeout in seconds for prompt requests; 0 means no timeout                                                                                                             | `0`                          |
+| `--permission-mode`         | `ACP_PERMISSION_MODE`         | How to respond to agent permission requests (see below)                                                                                                                | `allow_always`               |
+| `-s`, `--skill-path`        | `SKILL_PATH`                  | Path or URL to a skills folder appended to the prompt                                                                                                                  |                              |
+| `-b`, `--backup`            | `ACP_BACKUP`                  | Backup workspace to `target/workdirs` before running: `yes`, `no`. Only applies to Maven/Gradle projects. When enabled, the session CWD is set to the backup directory | `yes`                        |
+| `--backup-project-name`     | `ACP_BACKUP_PROJECT_NAME`     | Name of the project used in the backup directory: `target/workdirs/<name>_<timestamp>`                                                                                 | `.` (current directory name) |
+| `--wks`, `--workspace-path` | `WORKSPACE_PATH`              | Absolute path to the project/workspace directory used as CWD for the session                                                                                           | current directory            |
+| `-l`, `--log-level`         | `ACP_LOG_LEVEL`               | Log level: `INFO`, `DEBUG`, `TRACE`, `WARNING`, `SEVERE`                                                                                                               | `INFO`                       |
+| `-h`, `--help`              |                               | Show help message and exit                                                                                                                                             |                              |
 
 The `--agent` option resolves the binary and arguments automatically from a built-in registry. For custom or unsupported agents, use `--agent-binary` and `--agent-args` instead.
 
 When using `--agent opencode` with `--provider vertex-ai`, simple model names are resolved automatically:
 `--model claude-opus-4-6` becomes `google-vertex-anthropic/claude-opus-4-6@default`.
 
-### Examples
+### CLI examples
 
 For more detailed command examples per agent and provider, see [COMMANDS_EXAMPLE.md](COMMANDS_EXAMPLE.md).
 
@@ -137,11 +314,11 @@ For more detailed command examples per agent and provider, see [COMMANDS_EXAMPLE
 acp --prompt "Say Hello"
 
 # Claude Code with Vertex AI
-acp --agent claude --provider vertex-ai --model claude-opus-4-6 \
+acp --agent claude-acp --provider vertex-ai --model claude-opus-4-6 \
   --prompt "Say Hello"
 
 # Using environment variables
-export ACP_AGENT=claude
+export ACP_AGENT=claude-acp
 export ACP_PROVIDER=vertex-ai
 export ACP_MODEL=claude-opus-4-6
 acp --prompt "Execute the java-project-discovery skill."
@@ -151,6 +328,12 @@ acp --agent gemini --prompt "Say Hello"
 
 # Custom agent binary
 acp --agent-binary my-agent --agent-args "serve" --prompt "Say Hello"
+
+# With a skill path
+acp --agent claude-acp --skill-path /path/to/skills --prompt "Follow the skill instructions"
+
+# With a skill URL (cloned automatically)
+acp --agent claude-acp --skill-path https://github.com/org/skills-repo --prompt "Follow the skill"
 ```
 
 ## Agents and providers
@@ -204,11 +387,11 @@ The `--workspace-path` option sets the project directory used as CWD for the age
 
 ```shell
 # Run the agent against a different project directory
-acp --agent claude --workspace-path /path/to/my-project --prompt "Say hello"
+acp --agent claude-acp --workspace-path /path/to/my-project --prompt "Say hello"
 
 # Using an environment variable
 export WORKSPACE_PATH=/path/to/my-project
-acp --agent claude --prompt "Say hello"
+acp --agent claude-acp --prompt "Say hello"
 ```
 
 ### Workspace backup
@@ -224,21 +407,21 @@ When running against a Maven or Gradle project, the client automatically backs u
 - **Skipped silently** for non-Maven/Gradle workspaces regardless of the flag value
 
 ```shell
-# Backup is enabled by default — uses current directory name
+# Backup is enabled by default -- uses current directory name
 # CWD is set to the backup directory
-acp --agent claude --prompt "Refactor the service layer"
-# → CWD: target/workdirs/my-project_20260526-143022/
+acp --agent claude-acp --prompt "Refactor the service layer"
+# -> CWD: target/workdirs/my-project_20260526-143022/
 
 # Specify a backup project name (useful when running against multiple projects)
-acp --agent claude --backup-project-name my-service --prompt "Migrate to Jakarta"
-# → CWD: target/workdirs/my-service_20260526-143022/
+acp --agent claude-acp --backup-project-name my-service --prompt "Migrate to Jakarta"
+# -> CWD: target/workdirs/my-service_20260526-143022/
 
 # Combine workspace-path with backup
-acp --agent claude --workspace-path /path/to/my-project --prompt "Refactor"
-# → CWD: /path/to/my-project/target/workdirs/my-project_20260526-143022/
+acp --agent claude-acp --workspace-path /path/to/my-project --prompt "Refactor"
+# -> CWD: /path/to/my-project/target/workdirs/my-project_20260526-143022/
 
-# Disable backup — CWD stays as workspace-path or current directory
-acp --agent claude --backup no --prompt "Refactor the service layer"
+# Disable backup -- CWD stays as workspace-path or current directory
+acp --agent claude-acp --backup no --prompt "Refactor the service layer"
 ```
 
 ## Logging
