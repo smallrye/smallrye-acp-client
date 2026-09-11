@@ -101,8 +101,8 @@ public class AcpCommand implements Command<CommandInvocation> {
     @Option(name = "request-timeout", description = "Timeout in seconds for requests (initialize, create session, etc.) [env: ACP_REQUEST_TIMEOUT]")
     Integer requestTimeout;
 
-    @Option(name = "prompt-timeout", description = "Timeout in seconds for prompt requests; 0 means no timeout [env: ACP_PROMPT_TIMEOUT]")
-    Integer promptTimeout;
+    @Option(name = "prompt-request-timeout", description = "Timeout in seconds for prompt request; 0 means no timeout [env: ACP_PROMPT_REQUEST_TIMEOUT]")
+    Integer promptRequestTimeout;
 
     @Option(name = "permission-mode", description = "How to respond to agent permission requests: allow_always, allow_once, reject_once, reject_always [env: ACP_PERMISSION_MODE]")
     String permissionMode;
@@ -194,11 +194,11 @@ public class AcpCommand implements Command<CommandInvocation> {
                 "ACP_REQUEST_TIMEOUT", "30");
         Duration reqTimeout = Duration.ofSeconds(Long.parseLong(reqTimeoutStr));
 
-        String promptTimeoutStr = ProjectUtil.resolveValueWithPrecedence(
-                promptTimeout != null ? promptTimeout.toString() : null,
-                "ACP_PROMPT_TIMEOUT", "0");
-        long promptTimeoutSecs = Long.parseLong(promptTimeoutStr);
-        Duration pTimeout = promptTimeoutSecs > 0 ? Duration.ofSeconds(promptTimeoutSecs) : null;
+        String promptRequestTimeoutStr = ProjectUtil.resolveValueWithPrecedence(
+                promptRequestTimeout != null ? promptRequestTimeout.toString() : null,
+                "ACP_PROMPT_REQUEST_TIMEOUT", "0");
+        long promptRequestTimeoutSecs = Long.parseLong(promptRequestTimeoutStr);
+        Duration pRequestTimeout = promptRequestTimeoutSecs > 0 ? Duration.ofSeconds(promptRequestTimeoutSecs) : Duration.ZERO;
 
         // 0. Check for required env variables based on agent + provider
         checkProviderEnv(agent, provider);
@@ -239,7 +239,7 @@ public class AcpCommand implements Command<CommandInvocation> {
         final String permMode = permissionMode;
         try (AcpSyncClient client = AcpClient.sync(transport)
                 .requestTimeout(reqTimeout)
-                .promptTimeout(pTimeout)
+                .promptRequestTimeout(pRequestTimeout)
                 .sessionUpdateConsumer(notification -> {
                     String updateType = notification.meta() != null
                             ? (String) notification.meta().get("sessionUpdate")
