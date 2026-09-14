@@ -50,6 +50,8 @@ try (AcpSyncClient client = AcpClient.sync(transport)
             .onToolCallUpdate(tcu -> logger.info("[ToolUpdate] " + tcu.title() + " - " + tcu.status()))
             .onPlan(plan -> plan.entries().forEach(e -> logger.info("  - " + e.content())))
             .onUsage(usage -> logger.info("[Usage] used=" + usage.used() + " cost=" + usage.cost())))
+        .onPermissionRequest((request, selectedOptionId) ->
+            logger.info("[Permission] " + request.toolCall().title() + " -> " + selectedOptionId))
         .withPermissionMode("allow_always")
         .build()) {
     // client is connected and ready
@@ -64,6 +66,7 @@ try (AcpSyncClient client = AcpClient.sync(transport)
 | `withPromptRequestTimeout(Duration)` | Timeout for prompt requests; `Duration.ZERO` means no timeout | `Duration.ZERO` |
 | `withNotifications(Consumer<NotificationRouter>)` | Typed notification handlers (see below) | none |
 | `onSessionUpdate(Consumer<SessionNotification>)` | Raw consumer for all session notifications | none |
+| `onPermissionRequest(BiConsumer<RequestPermissionRequest, String>)` | Observer called when the agent requests permission. Receives the request and the selected option ID. Does not change how permissions are resolved | none |
 | `withPermissionMode(String)` | Permission mode: `"allow_always"`, `"allow_once"`, `"reject_once"`, `"reject_always"` | `"allow_always"` |
 
 ### Notification handling
@@ -206,6 +209,22 @@ client.connect()
 client.closeGracefully().join();
 ```
 
+### Raw JSON-RPC message listeners
+
+For protocol-level debugging or building JSON output modes, attach raw message listeners to the transport before connecting. These fire with the serialized JSON string before parsing (inbound) or after serialization (outbound):
+
+```java
+var transport = new StdioAcpClientTransport(agentParams);
+transport.setRawInboundListener(json -> System.out.println("IN:  " + json));
+transport.setRawOutboundListener(json -> System.out.println("OUT: " + json));
+
+try (AcpSyncClient client = AcpClient.sync(transport)
+        .withNotifications(n -> { /* silent */ })
+        .build()) {
+    // all JSON-RPC messages are printed to stdout
+}
+```
+
 ## ACP CLI
 
 The `client` module provides a CLI tool (`acp`) built on the core library. It wraps the fluent API into a single command that connects to any ACP-compatible agent, runs a prompt, and streams the output to the console.
@@ -261,19 +280,34 @@ mvn quarkus:dev -pl client -Dquarkus.args="--prompt 'Say Hello'"
 
 ### Example output
 
+By default the CLI only shows agent messages — no log noise:
+
 ```shell
-11:11:57,492 INFO  [StdioAcpClientTransport] ACP agent starting
-11:11:57,522 INFO  [StdioAcpClientTransport] ACP agent started
+$ acp --prompt "Say Hello"
+Starting the AI conversion ...
+Hello
+```
+
+With verbose mode (`-v`), notification details are logged at INFO level:
+
+```shell
+$ acp -v --prompt "Say Hello"
+Starting the AI conversion ...
 11:11:58,435 INFO  [AcpCommand] Connected to the ACP agent: OpenCode - v1.15.4
 11:11:58,613 INFO  [AcpCommand] Session created: ses_1b631ae8bffegMSoAYKMCI6cUc
-11:11:58,619 INFO  [AcpCommand] [Commands] Available:
-11:11:58,622 INFO  [AcpCommand] Model: opencode/big-pickle
-11:11:58,623 INFO  [AcpCommand] Sending prompt: Say Hello
-Here is the AI response:
+11:11:58,619 INFO  [AcpCommand] [Commands] 3 available:
+11:11:58,622 INFO  [AcpCommand] [Config] model=opencode/big-pickle
 Hello
 11:12:00,661 INFO  [AcpCommand] [Usage] used=8081 size=200000 cost={amount=0, currency=USD}
-11:12:00,665 INFO  [AcpCommand] Done! Stop reason: END_TURN
-11:12:00,676 INFO  [StdioAcpClientTransport] ACP agent process stopped (exit code 143)
+```
+
+With JSON output (`-o json`), raw JSON-RPC messages are printed to stdout (one per line) for machine parsing — all log output is suppressed:
+
+```shell
+$ acp -o json --prompt "Say Hello"
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{...}}
+{"jsonrpc":"2.0","id":1,"result":{...}}
+...
 ```
 
 ### CLI options
@@ -297,7 +331,9 @@ Precedence: **CLI argument > environment variable > default value**.
 | `-b`, `--backup`            | `ACP_BACKUP`                  | Backup workspace to `target/workdirs` before running: `yes`, `no`. Only applies to Maven/Gradle projects. When enabled, the session CWD is set to the backup directory | `yes`                        |
 | `--backup-project-name`     | `ACP_BACKUP_PROJECT_NAME`     | Name of the project used in the backup directory: `target/workdirs/<name>_<timestamp>`                                                                                 | `.` (current directory name) |
 | `--wks`, `--workspace-path` | `WORKSPACE_PATH`              | Absolute path to the project/workspace directory used as CWD for the session                                                                                           | current directory            |
-| `-l`, `--log-level`         | `ACP_LOG_LEVEL`               | Log level: `INFO`, `DEBUG`, `TRACE`, `WARNING`, `SEVERE`                                                                                                               | `INFO`                       |
+| `-o`, `--output`            | `ACP_OUTPUT`                  | Output mode: `default` (human-friendly), `json` (raw JSON-RPC messages)                                                                                                | `default`                    |
+| `-v`, `--verbose`           | `ACP_VERBOSE`                 | Enable verbose mode: logs all notifications at INFO level                                                                                                              | `false`                      |
+| `-l`, `--log-level`         | `ACP_LOG_LEVEL`               | Log level: `INFO`, `DEBUG`, `TRACE`, `WARNING`, `SEVERE`. Overrides `-v` when set                                                                                      |                              |
 | `-h`, `--help`              |                               | Show help message and exit                                                                                                                                             |                              |
 
 The `--agent` option resolves the binary and arguments automatically from a built-in registry. For custom or unsupported agents, use `--agent-binary` and `--agent-args` instead.
@@ -424,28 +460,45 @@ acp --agent claude-acp --workspace-path /path/to/my-project --prompt "Refactor"
 acp --agent claude-acp --backup no --prompt "Refactor the service layer"
 ```
 
+## Output modes
+
+The CLI supports three output modes that control what is printed to the console. The mode is selected via the `-o` / `--output` and `-v` / `--verbose` flags.
+
+| Mode | Flag | Agent messages | Notifications | Log output |
+|------|------|----------------|---------------|------------|
+| **default** | _(none)_ | streamed to stdout | silent (DEBUG level) | suppressed (WARNING) |
+| **verbose** | `-v` | streamed to stdout | logged at INFO | INFO level |
+| **json** | `-o json` | suppressed | suppressed | suppressed — raw JSON-RPC lines to stdout |
+
+- **default** — clean human-friendly output. Only the agent's response text is printed. Notifications (tool calls, plans, usage, etc.) and lifecycle events are logged at DEBUG level, invisible unless you also pass `--log-level DEBUG`.
+- **verbose** (`-v`) — everything from default, plus detailed INFO-level logging of all notifications: tool calls with rawInput/rawOutput, plans with priority, permissions, session info, usage, and thoughts.
+- **json** (`-o json`) — raw JSON-RPC protocol lines (both inbound and outbound) are printed to stdout, one per line. All log output is suppressed. Designed for machine consumption and debugging.
+
 ## Logging
 
-The project uses Quarkus logging (backed by [JBoss Log Manager](https://github.com/jboss-logging/jboss-logmanager)). By default, only `INFO`-level messages are shown (connection status, prompt lifecycle). Session update details (thoughts, tool calls, plans, commands, usage) and protocol internals are logged at `DEBUG` or `TRACE` level.
-
-Log levels are configured in `client/src/main/resources/application.properties`. You can also override them on the command line:
+The project uses Quarkus logging (backed by [JBoss Log Manager](https://github.com/jboss-logging/jboss-logmanager)). By default, log output is suppressed (`WARNING` level) so the CLI stays clean. Use `-v` (verbose) to enable INFO-level notification logging, or `-l` / `--log-level` to set an explicit level.
 
 ```shell
-# Enable debug logging
-java -Dquarkus.log.category.\"io.smallrye\".level=DEBUG \
-  -jar client/target/acp-java-client-${VERSION}-runner.jar \
-  --prompt "Say Hello"
+# Verbose mode — notifications at INFO level
+acp -v --prompt "Say Hello"
 
-# Enable trace logging (raw JSON-RPC messages)
-java -Dquarkus.log.category.\"io.smallrye\".level=TRACE \
-  -jar client/target/acp-java-client-${VERSION}-runner.jar \
-  --prompt "Say Hello"
+# Explicit debug level — notifications + lifecycle details
+acp --log-level DEBUG --prompt "Say Hello"
+
+# Trace level — raw JSON-RPC messages sent/received by the transport
+acp --log-level TRACE --prompt "Say Hello"
+
+# JSON output — raw protocol lines, no logs
+acp -o json --prompt "Say Hello"
 ```
+
+Precedence: `-o json` wins (all logging suppressed), then `--log-level` (explicit level), then `-v` (INFO).
 
 ### Log levels
 
 | Level | What you see |
 |-------|-------------|
-| `INFO` (default) | Connected to agent, sending prompt, stop reason |
-| `DEBUG` | + agent thoughts, tool calls, plans, commands, mode changes, usage, capabilities, session ID |
+| `WARNING` (default) | No log output — only agent messages appear |
+| `INFO` (`-v`) | + tool calls, plans, commands, mode changes, usage, permissions, session info |
+| `DEBUG` | + agent thoughts, capabilities, session ID, workspace paths, lifecycle events |
 | `TRACE` | + raw JSON-RPC messages sent/received by the transport |
