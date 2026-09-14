@@ -1,6 +1,7 @@
 package io.smallrye.agentclientprotocol.sdk.client;
 
 import java.time.Duration;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import io.smallrye.agentclientprotocol.sdk.client.transport.StdioAcpClientTransport;
@@ -85,6 +86,7 @@ public final class AcpClient {
 
         NotificationRouter notificationRouter;
         Consumer<SessionNotification> sessionUpdateConsumer;
+        BiConsumer<RequestPermissionRequest, String> permissionObserver;
         String permissionMode = "allow_always";
 
         AbstractBuilder(StdioAcpClientTransport transport) {
@@ -158,7 +160,20 @@ public final class AcpClient {
             return self();
         }
 
-        // ===== Permission mode =====
+        // ===== Permission handling =====
+
+        /**
+         * Registers an observer that is called when the agent requests permission.
+         * The observer receives the {@link RequestPermissionRequest} and the selected option ID.
+         * The core client still handles the response automatically based on the permission mode.
+         *
+         * @param observer a bi-consumer receiving the request and the selected option ID
+         * @return this builder
+         */
+        public B onPermissionRequest(BiConsumer<RequestPermissionRequest, String> observer) {
+            this.permissionObserver = observer;
+            return self();
+        }
 
         /**
          * Sets the permission mode for agent permission requests.
@@ -208,7 +223,7 @@ public final class AcpClient {
          */
         public AcpSyncClient build() {
             AcpAsyncClient async = new AcpAsyncClient(transport, requestTimeout, promptRequestTimeout,
-                    buildNotificationConsumer(), permissionMode);
+                    buildNotificationConsumer(), permissionObserver, permissionMode);
             return new AcpSyncClient(async);
         }
     }
@@ -227,7 +242,7 @@ public final class AcpClient {
          */
         public AcpAsyncClient build() {
             return new AcpAsyncClient(transport, requestTimeout, promptRequestTimeout,
-                    buildNotificationConsumer(), permissionMode);
+                    buildNotificationConsumer(), permissionObserver, permissionMode);
         }
     }
 }

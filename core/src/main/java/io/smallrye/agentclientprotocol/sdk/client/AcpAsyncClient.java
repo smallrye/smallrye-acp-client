@@ -9,6 +9,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import org.jboss.logging.Logger;
@@ -66,6 +67,7 @@ public class AcpAsyncClient {
     private final Duration requestTimeout;
     private final Duration promptRequestTimeout;
     private final Consumer<SessionNotification> sessionUpdateConsumer;
+    private final BiConsumer<RequestPermissionRequest, String> permissionObserver;
     private final String permissionMode;
 
     private final AtomicInteger requestIdCounter = new AtomicInteger(0);
@@ -78,12 +80,14 @@ public class AcpAsyncClient {
 
     AcpAsyncClient(StdioAcpClientTransport transport, Duration requestTimeout,
             Duration promptRequestTimeout, Consumer<SessionNotification> sessionUpdateConsumer,
+            BiConsumer<RequestPermissionRequest, String> permissionObserver,
             String permissionMode) {
         this.transport = transport;
         this.mapper = transport.getMapper();
         this.requestTimeout = requestTimeout;
         this.promptRequestTimeout = promptRequestTimeout;
         this.sessionUpdateConsumer = sessionUpdateConsumer;
+        this.permissionObserver = permissionObserver;
         this.permissionMode = permissionMode;
 
         transport.setInboundMessageHandler(this::handleIncoming);
@@ -358,7 +362,6 @@ public class AcpAsyncClient {
         if ("session/request_permission".equals(method)) {
             try {
                 var request = mapper.convertValue(paramsNode, RequestPermissionRequest.class);
-                logger.infof("[Permission] %s requests: %s", request.toolCall().title(), request.toolCall().kind());
 
                 String selectedOptionId = request.options().stream()
                         .filter(o -> o.kind().getValue().equals(permissionMode))
@@ -371,7 +374,9 @@ public class AcpAsyncClient {
                                 .map(PermissionOption::optionId)
                                 .orElse(request.options().getFirst().optionId()));
 
-                logger.infof("[Permission] Responded with: %s", permissionMode);
+                if (permissionObserver != null) {
+                    permissionObserver.accept(request, selectedOptionId);
+                }
                 sendResponse(id, new RequestPermissionResponse(new SelectedPermissionOutcome(selectedOptionId)));
             } catch (Exception e) {
                 logger.warn("Failed to handle permission request", e);

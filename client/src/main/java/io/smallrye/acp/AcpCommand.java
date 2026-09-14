@@ -123,25 +123,21 @@ public class AcpCommand implements Command<CommandInvocation> {
     @Option(shortName = 'l', name = "log-level", description = "Log level: INFO, DEBUG, TRACE, WARNING, SEVERE [env: ACP_LOG_LEVEL]")
     String logLevel;
 
+    @Option(shortName = 'o', name = "output", description = "Output mode: default (human-friendly), json (raw JSON-RPC messages) [env: ACP_OUTPUT]")
+    String output;
+
+    @Option(shortName = 'v', name = "verbose", description = "Enable to log JSON RPC messages [env: ACP_VERBOSE]", hasValue = false)
+    boolean verbose;
+
     @Override
     public CommandResult execute(CommandInvocation invocation) {
-        // Configure log level if provided
+        // Resolve output mode and verbose flag before configuring logging
+        output = ProjectUtil.resolveValueWithPrecedence(output, "ACP_OUTPUT", "default");
+        boolean useJsonOutput = "json".equalsIgnoreCase(output);
+        boolean useVerbose = verbose || "true".equalsIgnoreCase(System.getenv("ACP_VERBOSE"));
         logLevel = ProjectUtil.resolveValueWithPrecedence(logLevel, "ACP_LOG_LEVEL", null);
-        if (logLevel != null && !logLevel.isEmpty()) {
-            Level level = Level.parse(logLevel.toUpperCase());
-            java.util.logging.Logger.getLogger("io.smallrye").setLevel(level);
-            java.util.logging.Logger.getLogger("io.smallrye.acp").setLevel(level);
-            java.util.logging.Logger.getLogger("io.smallrye.agentclientprotocol").setLevel(level);
-            java.util.logging.Logger rootLogger = java.util.logging.Logger.getLogger("");
-            if (rootLogger.getLevel().intValue() > level.intValue()) {
-                rootLogger.setLevel(level);
-            }
-            for (var handler : rootLogger.getHandlers()) {
-                if (handler.getLevel().intValue() > level.intValue()) {
-                    handler.setLevel(level);
-                }
-            }
-        }
+
+        configureLogging(useJsonOutput, useVerbose, logLevel);
 
         // Resolve options: CLI arg > env var > default
         prompt = ProjectUtil.resolveValueWithPrecedence(prompt, "ACP_PROMPT", "Say Hello");
@@ -207,7 +203,7 @@ public class AcpCommand implements Command<CommandInvocation> {
         // 0b. Resolve workspace path: CLI/env > current directory
         workspacePath = ProjectUtil.resolveValueWithPrecedence(workspacePath, "WORKSPACE_PATH", null);
         String sessionCwd = workspacePath != null ? workspacePath : System.getProperty("user.dir");
-        logger.infof("Workspace CWD: %s", sessionCwd);
+        logger.debugf("Current workspace: %s", sessionCwd);
 
         // 0c. Backup workspace if requested and project is Maven/Gradle
         backup = ProjectUtil.resolveValueWithPrecedence(backup, "ACP_BACKUP", "yes");
@@ -216,7 +212,7 @@ public class AcpCommand implements Command<CommandInvocation> {
             Path backupDir = ProjectUtil.backupWorkspace(backupProjectName, Path.of(sessionCwd));
             if (backupDir != null) {
                 sessionCwd = backupDir.toAbsolutePath().toString();
-                logger.infof("CWD set to backup directory: %s", sessionCwd);
+                logger.debugf("Workspace set to: %s", sessionCwd);
             }
         }
         final String cwd = sessionCwd;
@@ -248,100 +244,264 @@ public class AcpCommand implements Command<CommandInvocation> {
         // 2. Create transport
         var transport = new StdioAcpClientTransport(params);
 
-        // 3. Build sync client with fluent API
-        try (AcpSyncClient client = AcpClient.sync(transport)
+        // 3. Build sync client and configure output mode:
+        //   json    — raw JSON-RPC lines to stdout (inbound + outbound), silent notification handlers
+        //   verbose — human-friendly agent messages + detailed INFO-level logging of all notifications
+        //   default — human-friendly agent messages only, notifications logged at DEBUG level
+        var clientBuilder = AcpClient.sync(transport)
                 .withRequestTimeout(reqTimeout)
                 .withPromptRequestTimeout(pRequestTimeout)
-                .withNotifications(n -> n
-                        .onAgentMessage(chunk -> {
-                            flushThoughts();
-                            System.out.print(extractText(chunk.content()));
-                            messageOutputPending = true;
-                        })
-                        .onAgentThought(chunk -> thoughtBuffer.append(extractText(chunk.content())))
-                        .onToolCall(tc -> {
-                            flushOutput();
-                            logger.infof("[ToolCall] %s (%s) - %s", tc.title(), tc.kind(), tc.status());
-                        })
-                        .onToolCallUpdate(tcu -> {
-                            flushOutput();
-                            logger.infof("[ToolUpdate] %s - %s", tcu.title(), tcu.status());
-                        })
-                        .onPlan(plan -> {
-                            flushOutput();
-                            logger.infof("[Plan] %d steps:", plan.entries().size());
-                            plan.entries().forEach(e -> logger.infof("  - %s [%s]", e.content(), e.status()));
-                        })
-                        .onAvailableCommands(cmds -> {
-                            flushOutput();
-                            logger.debug("[Agent Commands] available:");
-                            cmds.availableCommands()
-                                    .forEach(c -> logger.debugf("  /%s - %s", c.name(), c.description()));
-                        })
-                        .onConfigOption(config -> {
-                            flushOutput();
-                            if (config.configOptions() != null) {
-                                config.configOptions().stream()
-                                        .filter(opt -> "model".equalsIgnoreCase(opt.id()))
-                                        .findFirst()
-                                        .ifPresent(opt -> logger.infof("Model changed: %s", opt.currentValue()));
-                            }
-                            logger.infof("[Config] %s", config.configOptions());
-                        })
-                        .onCurrentMode(mode -> {
-                            flushOutput();
-                            logger.infof("[Mode] %s", mode.currentModeId());
-                        })
-                        .onUsage(usage -> {
-                            flushOutput();
-                            logger.infof("[Usage] used=%s size=%s cost=%s", usage.used(), usage.size(), usage.cost());
-                        }))
-                .withPermissionMode(permissionMode)
-                .build()) {
+                .withPermissionMode(permissionMode);
+
+        configureOutputMode(clientBuilder, transport, useJsonOutput, useVerbose);
+
+        try (AcpSyncClient client = clientBuilder.build()) {
 
             // 4. Execute the ACP session workflow
+            if (!useJsonOutput) {
+                invocation.println("Starting the AI conversion ...");
+            }
             AcpSessionResult result = client.workflow()
                     .initialize()
-                    .onInitialized(init -> {
-                        var agentInfo = init.agentInfo();
-                        String title = agentInfo.title();
-                        String connectedMsg = (title != null && !title.isEmpty())
-                                ? String.format("Connected to the ACP agent: %s - v%s - %s",
-                                        agentInfo.name(), agentInfo.version(), title)
-                                : String.format("Connected to the ACP agent: %s - v%s",
-                                        agentInfo.name(), agentInfo.version());
-                        logger.info(connectedMsg);
-                        logger.infof("Protocol version: %s", init.protocolVersion());
-                        logger.debugf("Capabilities: %s", init.agentCapabilities());
-                        logger.debugf("Auth methods: %s", init.authMethods());
-                    })
+                    .onInitialized(AcpCommand::logInitialized)
                     .newSession(cwd)
-                    .onSessionCreated(session -> {
-                        logger.infof("Session created: %s with CWD: %s", session.sessionId(), cwd);
-                        if (session.configOptions() != null) {
-                            session.configOptions().stream()
-                                    .filter(opt -> "model".equalsIgnoreCase(opt.id()))
-                                    .findFirst()
-                                    .ifPresent(opt -> logger.infof("Agent model: %s", opt.currentValue()));
-                        }
-                    })
+                    .onSessionCreated(session -> logSessionCreated(session, cwd))
                     .model(model)
                     .skill(skillPath)
                     .prompt(prompt)
-                    .beforePrompt(() -> {
-                        logger.infof("Sending prompt: %s", prompt);
-                        invocation.println("Here is the AI response:");
-                    })
                     .execute();
-
+            // Drain any remaining thoughts and ensure the last agent message ends with a newline
             flushOutput();
-            logger.infof("Done! Stop reason: %s", result.stopReason());
+            logger.debugf("Done! Stop reason: %s", result.stopReason());
 
             return CommandResult.SUCCESS;
         } catch (Exception e) {
             invocation.println("Error: " + e.getMessage());
-            e.printStackTrace();
+            logger.error(e);
             return CommandResult.FAILURE;
+        }
+    }
+
+    // -- Notification and permission configuration ----
+
+    /**
+     * Configures the client output mode by selecting the appropriate notification handlers
+     * and, for JSON mode, attaching raw message listeners to the transport.
+     */
+    private void configureOutputMode(AcpClient.SyncBuilder builder, StdioAcpClientTransport transport,
+            boolean jsonOutput, boolean verbose) {
+        if (jsonOutput) {
+            transport.setRawInboundListener(System.out::println);
+            transport.setRawOutboundListener(System.out::println);
+            builder.withNotifications(n -> {
+            });
+        } else if (verbose) {
+            configureVerbose(builder);
+        } else {
+            configureDefault(builder);
+        }
+    }
+
+    /**
+     * Configures human-friendly handlers: agent messages stream to stdout,
+     * thoughts are buffered at DEBUG level, other notifications logged at DEBUG.
+     * Permissions log title, kind, and selected option.
+     */
+    private void configureDefault(AcpClient.SyncBuilder builder) {
+        builder.withNotifications(n -> n
+                .onAgentMessage(chunk -> {
+                    flushThoughts();
+                    System.out.print(extractText(chunk.content()));
+                    messageOutputPending = true;
+                })
+                .onAgentThought(chunk -> thoughtBuffer.append(extractText(chunk.content())))
+                .onToolCall(tc -> {
+                    flushOutput();
+                    logger.debugf("[ToolCall] %s (%s) - %s", tc.title(), tc.kind(), tc.status());
+                })
+                .onToolCallUpdate(tcu -> {
+                    flushOutput();
+                    logger.debugf("[ToolUpdate] %s - %s", tcu.title(), tcu.status());
+                })
+                .onPlan(plan -> {
+                    flushOutput();
+                    logger.debugf("[Plan] %d steps:", plan.entries().size());
+                    plan.entries().forEach(e -> logger.debugf("  - %s [%s]", e.content(), e.status()));
+                })
+                .onAvailableCommands(cmds -> {
+                    flushOutput();
+                    logger.debug("[Agent Commands] available:");
+                    cmds.availableCommands()
+                            .forEach(c -> logger.debugf("  /%s - %s", c.name(), c.description()));
+                })
+                .onConfigOption(config -> {
+                    flushOutput();
+                    if (config.configOptions() != null) {
+                        config.configOptions().stream()
+                                .filter(opt -> "model".equalsIgnoreCase(opt.id()))
+                                .findFirst()
+                                .ifPresent(opt -> logger.debugf("Model changed: %s", opt.currentValue()));
+                    }
+                    logger.debugf("[Config] %s", config.configOptions());
+                })
+                .onCurrentMode(mode -> {
+                    flushOutput();
+                    logger.debugf("[Mode] %s", mode.currentModeId());
+                })
+                .onUsage(usage -> {
+                    flushOutput();
+                    logger.debugf("[Usage] used=%s size=%s cost=%s", usage.used(), usage.size(), usage.cost());
+                }))
+                .onPermissionRequest((request, selectedOptionId) -> {
+                    flushOutput();
+                    logger.debugf("[Permission] %s (%s) - responded: %s",
+                            request.toolCall().title(), request.toolCall().kind(), selectedOptionId);
+                });
+    }
+
+    /**
+     * Configures verbose handlers that log every notification and permission field at INFO.
+     * Thoughts stream to stdout and are also logged; tool calls include rawInput/rawOutput.
+     */
+    private void configureVerbose(AcpClient.SyncBuilder builder) {
+        builder.withNotifications(n -> n
+                .onAgentMessage(chunk -> {
+                    flushThoughts();
+                    System.out.print(extractText(chunk.content()));
+                    messageOutputPending = true;
+                })
+                .onAgentThought(chunk -> {
+                    String text = extractText(chunk.content());
+                    thoughtBuffer.append(text);
+                    logger.infof("[Thought] %s", text);
+                })
+                .onUserMessage(chunk -> {
+                    flushOutput();
+                    logger.infof("[UserMessage] %s", extractText(chunk.content()));
+                })
+                .onToolCall(tc -> {
+                    flushOutput();
+                    logger.infof("[ToolCall] id=%s title=%s kind=%s status=%s", tc.toolCallId(), tc.title(), tc.kind(),
+                            tc.status());
+                    if (tc.rawInput() != null) {
+                        logger.infof("[ToolCall]   rawInput: %s", tc.rawInput());
+                    }
+                    if (tc.content() != null && !tc.content().isEmpty()) {
+                        logger.infof("[ToolCall]   content: %s", tc.content());
+                    }
+                })
+                .onToolCallUpdate(tcu -> {
+                    flushOutput();
+                    logger.infof("[ToolUpdate] id=%s title=%s status=%s", tcu.toolCallId(), tcu.title(), tcu.status());
+                    if (tcu.rawInput() != null) {
+                        logger.infof("[ToolUpdate]   rawInput: %s", tcu.rawInput());
+                    }
+                    if (tcu.rawOutput() != null) {
+                        logger.infof("[ToolUpdate]   rawOutput: %s", tcu.rawOutput());
+                    }
+                    if (tcu.content() != null && !tcu.content().isEmpty()) {
+                        logger.infof("[ToolUpdate]   content: %s", tcu.content());
+                    }
+                })
+                .onPlan(plan -> {
+                    flushOutput();
+                    logger.infof("[Plan] %d steps:", plan.entries().size());
+                    plan.entries()
+                            .forEach(e -> logger.infof("  - [%s] %s (priority=%s)", e.status(), e.content(), e.priority()));
+                })
+                .onAvailableCommands(cmds -> {
+                    flushOutput();
+                    logger.infof("[Commands] %d available:", cmds.availableCommands().size());
+                    cmds.availableCommands()
+                            .forEach(c -> logger.infof("  /%s - %s", c.name(), c.description()));
+                })
+                .onConfigOption(config -> {
+                    flushOutput();
+                    if (config.configOptions() != null) {
+                        config.configOptions()
+                                .forEach(opt -> logger.infof("[Config] %s=%s (category=%s, type=%s)", opt.id(),
+                                        opt.currentValue(), opt.category(), opt.type()));
+                    }
+                })
+                .onCurrentMode(mode -> {
+                    flushOutput();
+                    logger.infof("[Mode] currentModeId=%s", mode.currentModeId());
+                })
+                .onSessionInfo(info -> {
+                    flushOutput();
+                    logger.infof("[SessionInfo] title=%s updatedAt=%s", info.title(), info.updatedAt());
+                })
+                .onUsage(usage -> {
+                    flushOutput();
+                    logger.infof("[Usage] used=%s size=%s cost=%s", usage.used(), usage.size(), usage.cost());
+                }))
+                .onPermissionRequest((request, selectedOptionId) -> {
+                    flushOutput();
+                    var tc = request.toolCall();
+                    logger.infof("[Permission] id=%s title=%s kind=%s", tc.toolCallId(), tc.title(), tc.kind());
+                    if (tc.rawInput() != null) {
+                        logger.infof("[Permission]   rawInput: %s", tc.rawInput());
+                    }
+                    request.options().forEach(opt -> logger.infof("[Permission]   option: %s (%s) id=%s",
+                            opt.name(), opt.kind().getValue(), opt.optionId()));
+                    logger.infof("[Permission]   selected: %s", selectedOptionId);
+                });
+    }
+
+    // -- Logging configuration ----
+
+    /**
+     * Configures logging based on output mode, verbose flag, and explicit log level.
+     *
+     * <p>
+     * The Quarkus console handler is always enabled ({@code quarkus.log.console.enabled=true})
+     * but the default category level is {@code WARNING}, so no log messages appear unless
+     * explicitly requested. This method adjusts levels at runtime based on the active flags:
+     *
+     * <ul>
+     * <li><b>JSON output</b> — suppresses all log categories ({@code OFF}) so that stdout
+     * contains only raw JSON-RPC protocol lines for machine parsing.</li>
+     * <li><b>Verbose</b> — lowers {@code io.smallrye.*} categories to {@code INFO} so
+     * notification details (tool calls, thoughts, usage, permissions) reach the console.</li>
+     * <li><b>Explicit level</b> — overrides the verbose default with the user-specified
+     * level (e.g. {@code DEBUG}, {@code TRACE}).</li>
+     * </ul>
+     *
+     * <p>
+     * Precedence: {@code jsonOutput} wins (all output suppressed), then {@code explicitLevel},
+     * then {@code verbose}.
+     *
+     * @param jsonOutput {@code true} to suppress all log output for JSON-RPC mode
+     * @param verbose {@code true} to enable INFO-level logging for verbose mode
+     * @param explicitLevel an explicit JUL level string (e.g. {@code "DEBUG"}), or {@code null}
+     */
+    private static void configureLogging(boolean jsonOutput, boolean verbose, String explicitLevel) {
+        if (jsonOutput) {
+            java.util.logging.Logger.getLogger("io.quarkus").setLevel(Level.OFF);
+            java.util.logging.Logger.getLogger("io.smallrye").setLevel(Level.OFF);
+            return;
+        }
+
+        Level targetLevel = null;
+        if (explicitLevel != null && !explicitLevel.isEmpty()) {
+            targetLevel = Level.parse(explicitLevel.toUpperCase());
+        } else if (verbose) {
+            targetLevel = Level.INFO;
+        }
+
+        if (targetLevel != null) {
+            java.util.logging.Logger.getLogger("io.smallrye").setLevel(targetLevel);
+            java.util.logging.Logger.getLogger("io.smallrye.acp").setLevel(targetLevel);
+            java.util.logging.Logger.getLogger("io.smallrye.agentclientprotocol").setLevel(targetLevel);
+            java.util.logging.Logger rootLogger = java.util.logging.Logger.getLogger("");
+            if (rootLogger.getLevel().intValue() > targetLevel.intValue()) {
+                rootLogger.setLevel(targetLevel);
+            }
+            for (var handler : rootLogger.getHandlers()) {
+                if (handler.getLevel().intValue() > targetLevel.intValue()) {
+                    handler.setLevel(targetLevel);
+                }
+            }
         }
     }
 
@@ -369,8 +529,52 @@ public class AcpCommand implements Command<CommandInvocation> {
         return model;
     }
 
+    // -- Session lifecycle logging ----
+
+    /**
+     * Logs agent metadata after a successful ACP initialization handshake:
+     * agent name, version, title, protocol version, capabilities, and auth methods.
+     */
+    private static void logInitialized(InitializeResponse init) {
+        var agentInfo = init.agentInfo();
+        String title = agentInfo.title();
+        String connectedMsg = (title != null && !title.isEmpty())
+                ? String.format("Connected to the ACP agent: %s - v%s - %s",
+                        agentInfo.name(), agentInfo.version(), title)
+                : String.format("Connected to the ACP agent: %s - v%s",
+                        agentInfo.name(), agentInfo.version());
+        logger.debugf(connectedMsg);
+        logger.debugf("Protocol version: %s", init.protocolVersion());
+        logger.debugf("Capabilities: %s", init.agentCapabilities());
+        logger.debugf("Auth methods: %s", init.authMethods());
+    }
+
+    /**
+     * Logs session creation details: session ID, working directory,
+     * and the active model (if reported in the session config options).
+     */
+    private static void logSessionCreated(NewSessionResponse session, String cwd) {
+        logger.debugf("Session created: %s with CWD: %s", session.sessionId(), cwd);
+        if (session.configOptions() != null) {
+            session.configOptions().stream()
+                    .filter(opt -> "model".equalsIgnoreCase(opt.id()))
+                    .findFirst()
+                    .ifPresent(opt -> logger.debugf("Agent model: %s", opt.currentValue()));
+        }
+    }
+
     // -- Output helpers ----
 
+    /**
+     * Flushes any buffered thoughts and finalizes pending agent message output.
+     *
+     * <p>
+     * Agent messages are streamed to stdout via {@code System.out.print()} without
+     * a trailing newline (to allow incremental output). This method appends the
+     * final newline when no more chunks are expected, and drains any accumulated
+     * thought content to the logger. Called between notification types to ensure
+     * clean output boundaries.
+     */
     private void flushOutput() {
         flushThoughts();
         if (messageOutputPending) {
@@ -379,6 +583,9 @@ public class AcpCommand implements Command<CommandInvocation> {
         }
     }
 
+    /**
+     * Drains the thought buffer to the logger at DEBUG level and resets it.
+     */
     private void flushThoughts() {
         if (!thoughtBuffer.isEmpty()) {
             logger.debugf("[Thought] %s", thoughtBuffer.toString().strip());
@@ -386,6 +593,10 @@ public class AcpCommand implements Command<CommandInvocation> {
         }
     }
 
+    /**
+     * Extracts text from a content object. Handles both {@link Map}-based content
+     * (with a {@code "text"} key) and plain objects by calling {@code toString()}.
+     */
     private static String extractText(Object content) {
         if (content instanceof Map<?, ?> map) {
             Object text = map.get("text");
