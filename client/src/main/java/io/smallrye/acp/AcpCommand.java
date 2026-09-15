@@ -259,7 +259,7 @@ public class AcpCommand implements Command<CommandInvocation> {
 
             // 4. Execute the ACP session workflow
             if (!useJsonOutput) {
-                invocation.println("Starting the AI conversion ...");
+                invocation.println("Starting the AI conversation ...");
             }
             AcpSessionResult result = client.workflow()
                     .initialize()
