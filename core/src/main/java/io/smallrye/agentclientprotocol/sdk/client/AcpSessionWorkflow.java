@@ -9,17 +9,16 @@ import org.jboss.logging.Logger;
 import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
 
 /**
- * Fluent workflow for the common ACP session lifecycle:
- * initialize, create session, configure model, send prompt, close session.
+ * Fluent workflow for the common ACP session lifecycle: initialize, create session, configure model, send prompt, close
+ * session.
  *
  * <p>
- * Captures all configuration via chained method calls, then executes the full
- * workflow when {@link #runSession()} is called. Returns an {@link AcpSessionResult}
- * containing all intermediate responses.
+ * Captures all configuration via chained method calls, then executes the full workflow when {@link #runSession()} is called.
+ * Returns an {@link AcpSessionResult} containing all intermediate responses.
  *
  * <p>
- * Optional lifecycle callbacks ({@link #onInitialized}, {@link #onSessionCreated},
- * {@link #beforePrompt}) allow real-time logging or UI updates between steps.
+ * Optional lifecycle callbacks ({@link #onInitialized}, {@link #onSessionCreated}, {@link #beforePrompt}) allow real-time
+ * logging or UI updates between steps.
  *
  * <p>
  * Example:
@@ -99,9 +98,8 @@ public class AcpSessionWorkflow {
     }
 
     /**
-     * Adds an MCP server that the agent should connect to during the session.
-     * Accepts any of the transport-specific types: {@link McpServerStdio},
-     * {@link McpServerSse}, or {@link McpServerHttp}.
+     * Adds an MCP server that the agent should connect to during the session. Accepts any of the transport-specific types:
+     * {@link McpServerStdio}, {@link McpServerSse}, or {@link McpServerHttp}.
      *
      * @param mcpServer the MCP server configuration
      */
@@ -121,8 +119,8 @@ public class AcpSessionWorkflow {
     }
 
     /**
-     * Configures the model to use for the session.
-     * If the agent does not support {@code session/set_config_option}, this is silently skipped.
+     * Configures the model to use for the session. If the agent does not support {@code session/set_config_option}, this is
+     * silently skipped.
      *
      * @param model the model identifier (e.g. {@code "claude-opus-4-6"}), or {@code null} to skip
      */
@@ -165,8 +163,7 @@ public class AcpSessionWorkflow {
      * Executes the workflow: initialize, create session, set model, send prompt, close session.
      *
      * <p>
-     * The session is always closed when the workflow completes, even if an exception occurs
-     * during the prompt.
+     * The session is always closed when the workflow completes, even if an exception occurs during the prompt.
      *
      * @return an {@link AcpSessionResult} containing all intermediate responses
      * @throws IllegalStateException if {@link #newSession(String)} or {@link #prompt(String)} was not called
@@ -236,11 +233,14 @@ public class AcpSessionWorkflow {
             throw new RuntimeException(e);
         } finally {
             // 6. Close session
-            try {
-                client.closeSession(new CloseSessionRequest(sessionId));
-            } catch (Exception e) {
-                logger.warnf("Failed to close session %s: %s", sessionId, e.getMessage());
+            if (sessionId != null) {
+                try {
+                    client.closeSession(new CloseSessionRequest(sessionId));
+                } catch (Exception e) {
+                    logger.warnf("Failed to close session %s: %s", sessionId, e.getMessage());
+                }
             }
         }
     }
+}
 }
