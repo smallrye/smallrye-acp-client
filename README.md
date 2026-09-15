@@ -292,7 +292,7 @@ With verbose mode (`-v`), notification details are logged at INFO level:
 
 ```shell
 $ acp -v --prompt "Say Hello"
-Starting the AI conversion ...
+Starting the AI conversation ...
 11:11:58,435 INFO  [AcpCommand] Connected to the ACP agent: OpenCode - v1.15.4
 11:11:58,613 INFO  [AcpCommand] Session created: ses_1b631ae8bffegMSoAYKMCI6cUc
 11:11:58,619 INFO  [AcpCommand] [Commands] 3 available:
