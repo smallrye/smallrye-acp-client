@@ -1,6 +1,6 @@
 package io.smallrye.agentclientprotocol.sdk.client;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -47,7 +47,7 @@ public class AcpSessionWorkflow {
     private final AcpSyncClient client;
     private boolean doInitialize;
     private String cwd;
-    private List<String> additionalDirectories = List.of();
+    private final List<Object> mcpServers = new ArrayList<>();
     private String model;
     private String skillPath;
     private String promptText;
@@ -99,12 +99,24 @@ public class AcpSessionWorkflow {
     }
 
     /**
-     * Configures additional directories to expose to the agent session.
+     * Adds an MCP server that the agent should connect to during the session.
+     * Accepts any of the transport-specific types: {@link McpServerStdio},
+     * {@link McpServerSse}, or {@link McpServerHttp}.
      *
-     * @param additionalDirectories additional directory paths
+     * @param mcpServer the MCP server configuration
      */
-    public AcpSessionWorkflow additionalDirectories(List<String> additionalDirectories) {
-        this.additionalDirectories = additionalDirectories;
+    public AcpSessionWorkflow mcpServer(Object mcpServer) {
+        this.mcpServers.add(mcpServer);
+        return this;
+    }
+
+    /**
+     * Adds multiple MCP servers that the agent should connect to during the session.
+     *
+     * @param mcpServers the MCP server configurations
+     */
+    public AcpSessionWorkflow mcpServers(List<?> mcpServers) {
+        this.mcpServers.addAll(mcpServers);
         return this;
     }
 
@@ -184,7 +196,7 @@ public class AcpSessionWorkflow {
 
             // 2. Create session
             var sessionResponse = client
-                    .newSession(new NewSessionRequest(cwd, Collections.singletonList(additionalDirectories)));
+                    .newSession(new NewSessionRequest(cwd, List.copyOf(mcpServers)));
             sessionId = sessionResponse.sessionId();
             if (onSessionCreated != null) {
                 onSessionCreated.accept(sessionResponse);

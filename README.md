@@ -98,11 +98,21 @@ The `AcpSessionWorkflow` provides a fluent API for the common session lifecycle:
 AcpSessionResult result = client.workflow()
         .initialize()
         .newSession("/path/to/workspace")
+        .mcpServer(new McpServerStdio(
+                List.of("--stdio"), "/path/to/mcp-server", List.of(), "filesystem"))
         .model("claude-opus-4-6")
         .skill("/path/to/skill")
         .prompt("Refactor the service layer")
         .execute();
 ```
+
+The `mcpServer()` call is optional. It accepts any of the three transport types defined by the ACP schema:
+
+| Record | Transport | Required fields |
+|--------|-----------|-----------------|
+| `McpServerStdio` | stdio | `name`, `command`, `args`, `env` |
+| `McpServerSse` | SSE | `name`, `url`, `headers` |
+| `McpServerHttp` | HTTP | `name`, `url`, `headers` |
 
 The workflow returns an `AcpSessionResult` containing all intermediate responses:
 
@@ -133,7 +143,7 @@ PromptResponse prompt = result.promptResponse();
 |--------|----------|-------------|
 | `initialize()` | yes | Performs the ACP handshake with the agent |
 | `newSession(String cwd)` | yes | Creates a session with the given workspace directory |
-| `additionalDirectories(List)` | no | Exposes additional directories to the agent |
+| `mcpServer(Object)` / `mcpServers(List)` | no | MCP servers the agent should connect to (`McpServerStdio`, `McpServerSse`, or `McpServerHttp`) |
 | `model(String)` | no | Sets the model (e.g. `"claude-opus-4-6"`). Silently skipped if the agent doesn't support config options |
 | `skill(String)` | no | Appends skill instructions to the prompt |
 | `prompt(String)` | yes | Sets the prompt text to send |
