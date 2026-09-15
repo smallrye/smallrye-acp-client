@@ -454,9 +454,7 @@ public class AcpCommand implements Command<CommandInvocation> {
      * Configures logging based on output mode, verbose flag, and explicit log level.
      *
      * <p>
-     * The Quarkus console handler is always enabled ({@code quarkus.log.console.enabled=true})
-     * but the default category level is {@code WARNING}, so no log messages appear unless
-     * explicitly requested. This method adjusts levels at runtime based on the active flags:
+     * This method adjusts levels at runtime based on the active flags:
      *
      * <ul>
      * <li><b>JSON output</b> — suppresses all log categories ({@code OFF}) so that stdout
