@@ -1,5 +1,6 @@
 package io.smallrye.agentclientprotocol.sdk.client;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -46,7 +47,7 @@ public class AcpSessionWorkflow {
     private final AcpSyncClient client;
     private boolean doInitialize;
     private String cwd;
-    private List<Object> additionalDirectories = List.of();
+    private List<String> additionalDirectories = List.of();
     private String model;
     private String skillPath;
     private String promptText;
@@ -102,7 +103,7 @@ public class AcpSessionWorkflow {
      *
      * @param additionalDirectories additional directory paths
      */
-    public AcpSessionWorkflow additionalDirectories(List<Object> additionalDirectories) {
+    public AcpSessionWorkflow additionalDirectories(List<String> additionalDirectories) {
         this.additionalDirectories = additionalDirectories;
         return this;
     }
@@ -182,7 +183,8 @@ public class AcpSessionWorkflow {
             }
 
             // 2. Create session
-            var sessionResponse = client.newSession(new NewSessionRequest(cwd, additionalDirectories));
+            var sessionResponse = client
+                    .newSession(new NewSessionRequest(cwd, Collections.singletonList(additionalDirectories)));
             sessionId = sessionResponse.sessionId();
             if (onSessionCreated != null) {
                 onSessionCreated.accept(sessionResponse);
