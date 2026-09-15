@@ -22,8 +22,9 @@ import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
  *
  * <pre>{@code
  * try (AcpSyncClient client = AcpClient.sync(transport)
- *         .onAgentMessage(chunk -> System.out.print(extractText(chunk.content())))
- *         .onToolCall(tc -> logger.info("[ToolCall] " + tc.title()))
+ *         .withNotifications(n -> n                                                                                                                                                                           
+ *                  .onAgentMessage(chunk -> ...)                                                                                                                                                                   
+ *                  .onToolCall(tc -> ...))
  *         .withPermissionMode("allow_always")
  *         .build()) {
  *
