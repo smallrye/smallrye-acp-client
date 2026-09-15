@@ -119,7 +119,7 @@ public final class AcpClient {
          * @return this builder
          */
         public B withPromptRequestTimeout(Duration timeout) {
-            this.promptRequestTimeout = timeout;
+            this.promptRequestTimeout = timeout != null ? timeout : Duration.ZERO;
             return self();
         }
 
