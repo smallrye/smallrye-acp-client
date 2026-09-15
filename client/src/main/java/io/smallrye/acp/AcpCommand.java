@@ -293,8 +293,6 @@ public class AcpCommand implements Command<CommandInvocation> {
         if (jsonOutput) {
             transport.setRawInboundListener(System.out::println);
             transport.setRawOutboundListener(System.out::println);
-            builder.withNotifications(n -> {
-            });
         } else if (verbose) {
             configureVerbose(builder);
         } else {
