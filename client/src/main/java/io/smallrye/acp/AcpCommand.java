@@ -269,7 +269,7 @@ public class AcpCommand implements Command<CommandInvocation> {
                     .model(model)
                     .skill(skillPath)
                     .prompt(prompt)
-                    .execute();
+                    .runSession();
             // Drain any remaining thoughts and ensure the last agent message ends with a newline
             flushOutput();
             logger.debugf("Done! Stop reason: %s", result.stopReason());

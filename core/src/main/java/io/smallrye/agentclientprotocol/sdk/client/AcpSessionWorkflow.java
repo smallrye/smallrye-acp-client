@@ -13,7 +13,7 @@ import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
  *
  * <p>
  * Captures all configuration via chained method calls, then executes the full
- * workflow when {@link #execute()} is called. Returns an {@link AcpSessionResult}
+ * workflow when {@link #runSession()} is called. Returns an {@link AcpSessionResult}
  * containing all intermediate responses.
  *
  * <p>
@@ -158,31 +158,35 @@ public class AcpSessionWorkflow {
      * @return an {@link AcpSessionResult} containing all intermediate responses
      * @throws IllegalStateException if {@link #newSession(String)} or {@link #prompt(String)} was not called
      */
-    public AcpSessionResult execute() {
-        if (cwd == null) {
-            throw new IllegalStateException("newSession(cwd) must be called before execute()");
-        }
-        if (promptText == null) {
-            throw new IllegalStateException("prompt(text) must be called before execute()");
+    public AcpSessionResult runSession() {
+        if (!doInitialize) {
+            throw new IllegalStateException("initialize must be called before newSession(cwd)");
         }
 
-        // 1. Initialize
-        InitializeResponse initResponse = null;
-        if (doInitialize) {
-            initResponse = client.initialize();
+        if (cwd == null) {
+            throw new IllegalStateException(
+                    "newSession(cwd) must be called after initialize and before prompt() and runSession()");
+        }
+
+        if (promptText == null) {
+            throw new IllegalStateException("prompt(text) must be called before runSession()");
+        }
+
+        String sessionId = "";
+
+        try {
+            // 1. Initialize
+            InitializeResponse initResponse = client.initialize();
             if (onInitialized != null) {
                 onInitialized.accept(initResponse);
             }
-        }
 
-        // 2. Create session
-        var sessionResponse = client.newSession(new NewSessionRequest(cwd, additionalDirectories));
-        String sessionId = sessionResponse.sessionId();
-        if (onSessionCreated != null) {
-            onSessionCreated.accept(sessionResponse);
-        }
-
-        try {
+            // 2. Create session
+            var sessionResponse = client.newSession(new NewSessionRequest(cwd, additionalDirectories));
+            sessionId = sessionResponse.sessionId();
+            if (onSessionCreated != null) {
+                onSessionCreated.accept(sessionResponse);
+            }
             // 3. Set model (optional)
             SetSessionConfigOptionResponse configResponse = null;
             if (model != null && !model.isEmpty()) {
@@ -213,6 +217,9 @@ public class AcpSessionWorkflow {
                     List.of(new TextContent(effectivePrompt)), sessionId));
 
             return new AcpSessionResult(initResponse, sessionResponse, configResponse, promptResponse);
+        } catch (Exception e) {
+            logger.errorf("Failed to run the session: %s", e.getMessage());
+            throw new RuntimeException(e);
         } finally {
             // 6. Close session
             try {
