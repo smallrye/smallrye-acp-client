@@ -461,7 +461,7 @@ public class AcpCommand implements Command<CommandInvocation> {
      * <ul>
      * <li><b>JSON output</b> — suppresses all log categories ({@code OFF}) so that stdout
      * contains only raw JSON-RPC protocol lines for machine parsing.</li>
-     * <li><b>Verbose</b> — lowers {@code io.smallrye.*} categories to {@code INFO} so
+     * <li><b>Verbose</b> — lowers {@code io.smallrye.acp} categories to {@code INFO} so
      * notification details (tool calls, thoughts, usage, permissions) reach the console.</li>
      * <li><b>Explicit level</b> — overrides the verbose default with the user-specified
      * level (e.g. {@code DEBUG}, {@code TRACE}).</li>
@@ -477,8 +477,8 @@ public class AcpCommand implements Command<CommandInvocation> {
      */
     private static void configureLogging(boolean jsonOutput, boolean verbose, String explicitLevel) {
         if (jsonOutput) {
-            java.util.logging.Logger.getLogger("io.quarkus").setLevel(Level.OFF);
-            java.util.logging.Logger.getLogger("io.smallrye").setLevel(Level.OFF);
+            java.util.logging.Logger.getLogger("io.smallrye.acp").setLevel(Level.OFF);
+            java.util.logging.Logger.getLogger("io.smallrye.agentclientprotocol").setLevel(Level.OFF);
             return;
         }
 
@@ -490,7 +490,6 @@ public class AcpCommand implements Command<CommandInvocation> {
         }
 
         if (targetLevel != null) {
-            java.util.logging.Logger.getLogger("io.smallrye").setLevel(targetLevel);
             java.util.logging.Logger.getLogger("io.smallrye.acp").setLevel(targetLevel);
             java.util.logging.Logger.getLogger("io.smallrye.agentclientprotocol").setLevel(targetLevel);
             java.util.logging.Logger rootLogger = java.util.logging.Logger.getLogger("");
