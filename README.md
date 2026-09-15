@@ -284,7 +284,7 @@ By default the CLI only shows agent messages — no log noise:
 
 ```shell
 $ acp --prompt "Say Hello"
-Starting the AI conversion ...
+Starting the AI conversation ...
 Hello
 ```
 
