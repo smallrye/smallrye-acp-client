@@ -70,8 +70,10 @@ public class StdioAcpClientTransport {
     private final ExecutorService outboundExecutor;
     private final ExecutorService errorExecutor;
 
-    private Consumer<String> stdErrorHandler = error -> logger.infof("STDERR: %s", error);
+    private Consumer<String> stdErrorHandler = error -> logger.debugf("<= Agent Msg: %s", error);
     private Consumer<JsonNode> inboundMessageHandler;
+    private Consumer<String> rawInboundListener;
+    private Consumer<String> rawOutboundListener;
 
     /**
      * Creates a transport with the default {@link ObjectMapper} configuration.
@@ -152,6 +154,26 @@ public class StdioAcpClientTransport {
     }
 
     /**
+     * Sets a listener for raw inbound JSON-RPC messages (agent → client).
+     * Called with the raw JSON string before parsing and dispatch.
+     *
+     * @param listener the raw message consumer
+     */
+    public void setRawInboundListener(Consumer<String> listener) {
+        this.rawInboundListener = listener;
+    }
+
+    /**
+     * Sets a listener for raw outbound JSON-RPC messages (client → agent).
+     * Called with the serialized JSON string before writing to the agent's stdin.
+     *
+     * @param listener the raw message consumer
+     */
+    public void setRawOutboundListener(Consumer<String> listener) {
+        this.rawOutboundListener = listener;
+    }
+
+    /**
      * Sets the handler for the agent's stderr output. Defaults to logging at INFO level.
      *
      * @param handler the stderr line consumer
@@ -164,7 +186,7 @@ public class StdioAcpClientTransport {
      * Launches the agent process and starts the inbound, outbound, and error processing threads.
      */
     public void connect() {
-        logger.info("ACP agent starting");
+        logger.debug("ACP agent starting");
 
         List<String> fullCommand = new ArrayList<>();
         fullCommand.add(params.getCommand());
@@ -189,7 +211,7 @@ public class StdioAcpClientTransport {
         startOutboundProcessing();
         startErrorProcessing();
 
-        logger.info("ACP agent started");
+        logger.debug("ACP agent started");
     }
 
     /**
@@ -209,6 +231,9 @@ public class StdioAcpClientTransport {
                 while (!isClosing && (line = reader.readLine()) != null) {
                     try {
                         logger.tracef("RECV: %s", line);
+                        if (rawInboundListener != null) {
+                            rawInboundListener.accept(line);
+                        }
                         JsonNode message = mapper.readTree(line);
                         if (inboundMessageHandler != null) {
                             inboundMessageHandler.accept(message);
@@ -242,6 +267,9 @@ public class StdioAcpClientTransport {
                                     .replace("\n", "\\n")
                                     .replace("\r", "\\n");
                             logger.tracef("SEND: %s", jsonMessage);
+                            if (rawOutboundListener != null) {
+                                rawOutboundListener.accept(jsonMessage);
+                            }
 
                             var os = process.getOutputStream();
                             synchronized (os) {
@@ -295,7 +323,7 @@ public class StdioAcpClientTransport {
                 if (exited) {
                     int exitCode = process.exitValue();
                     if (exitCode == 0 || exitCode == 143 || exitCode == 137) {
-                        logger.infof("ACP agent process stopped (exit code %d)", exitCode);
+                        logger.debugf("ACP agent process stopped (exit code %d)", exitCode);
                     } else {
                         logger.warnf("Process terminated with code %d", exitCode);
                     }

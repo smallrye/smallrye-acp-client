@@ -9,8 +9,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import org.jboss.logging.Logger;
 
@@ -67,7 +67,8 @@ public class AcpAsyncClient {
     private final Duration requestTimeout;
     private final Duration promptRequestTimeout;
     private final Consumer<SessionNotification> sessionUpdateConsumer;
-    private final Function<RequestPermissionRequest, RequestPermissionResponse> permissionRequestHandler;
+    private final BiConsumer<RequestPermissionRequest, String> permissionObserver;
+    private final String permissionMode;
 
     private final AtomicInteger requestIdCounter = new AtomicInteger(0);
     private final ConcurrentHashMap<Integer, CompletableFuture<JsonNode>> pendingRequests = new ConcurrentHashMap<>();
@@ -79,13 +80,15 @@ public class AcpAsyncClient {
 
     AcpAsyncClient(StdioAcpClientTransport transport, Duration requestTimeout,
             Duration promptRequestTimeout, Consumer<SessionNotification> sessionUpdateConsumer,
-            Function<RequestPermissionRequest, RequestPermissionResponse> permissionRequestHandler) {
+            BiConsumer<RequestPermissionRequest, String> permissionObserver,
+            String permissionMode) {
         this.transport = transport;
         this.mapper = transport.getMapper();
         this.requestTimeout = requestTimeout;
         this.promptRequestTimeout = promptRequestTimeout;
         this.sessionUpdateConsumer = sessionUpdateConsumer;
-        this.permissionRequestHandler = permissionRequestHandler;
+        this.permissionObserver = permissionObserver;
+        this.permissionMode = permissionMode;
 
         transport.setInboundMessageHandler(this::handleIncoming);
     }
@@ -359,22 +362,22 @@ public class AcpAsyncClient {
         if ("session/request_permission".equals(method)) {
             try {
                 var request = mapper.convertValue(paramsNode, RequestPermissionRequest.class);
-                RequestPermissionResponse response;
-                if (permissionRequestHandler != null) {
-                    response = permissionRequestHandler.apply(request);
-                } else {
-                    // Default: auto-accept with the first allow option
-                    String optionId = request.options().stream()
-                            .filter(o -> o.kind() == PermissionOptionKind.ALLOW_ALWAYS
-                                    || o.kind() == PermissionOptionKind.ALLOW_ONCE)
-                            .findFirst()
-                            .map(PermissionOption::optionId)
-                            .orElse(request.options().getFirst().optionId());
-                    response = new RequestPermissionResponse(
-                            new SelectedPermissionOutcome(optionId));
-                    logger.infof("[Permission] Auto-accepted: %s", request.toolCall().title());
+
+                String selectedOptionId = request.options().stream()
+                        .filter(o -> o.kind().getValue().equals(permissionMode))
+                        .findFirst()
+                        .map(PermissionOption::optionId)
+                        .orElseGet(() -> request.options().stream()
+                                .filter(o -> o.kind() == PermissionOptionKind.ALLOW_ALWAYS
+                                        || o.kind() == PermissionOptionKind.ALLOW_ONCE)
+                                .findFirst()
+                                .map(PermissionOption::optionId)
+                                .orElse(request.options().getFirst().optionId()));
+
+                if (permissionObserver != null) {
+                    permissionObserver.accept(request, selectedOptionId);
                 }
-                sendResponse(id, response);
+                sendResponse(id, new RequestPermissionResponse(new SelectedPermissionOutcome(selectedOptionId)));
             } catch (Exception e) {
                 logger.warn("Failed to handle permission request", e);
                 sendErrorResponse(id, -32603, "Internal error: " + e.getMessage());

@@ -59,7 +59,7 @@ public class ProjectUtil {
                             logger.warnf("Failed to copy %s: %s", source, e.getMessage());
                         }
                     });
-            logger.infof("Workspace backed up to: %s", tempDirectory);
+            logger.debugf("Workspace backed up to: %s", tempDirectory);
             return tempDirectory;
         } catch (IOException e) {
             logger.errorf("Failed to backup workspace: %s", e.getMessage());
