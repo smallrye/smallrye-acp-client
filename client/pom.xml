@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.smallrye.ai</groupId>
         <artifactId>acp-java-parent</artifactId>
-        <version>0.1.1</version>
+        <version>0.1.2-SNAPSHOT</version>
     </parent>
 
     <artifactId>acp-java-client</artifactId>
@@ -33,21 +33,21 @@
         <dependency>
             <groupId>io.smallrye.ai</groupId>
             <artifactId>acp-java-registry</artifactId>
-            <version>0.1.1</version>
+            <version>0.1.2-SNAPSHOT</version>
         </dependency>
 
         <!-- Core module (Acp Client, transport) -->
         <dependency>
             <groupId>io.smallrye.ai</groupId>
             <artifactId>acp-java-core</artifactId>
-            <version>0.1.1</version>
+            <version>0.1.2-SNAPSHOT</version>
         </dependency>
 
         <!-- Schema module (v1 types used directly in AcpClientCommand) -->
         <dependency>
             <groupId>io.smallrye.ai</groupId>
             <artifactId>acp-java-schema</artifactId>
-            <version>0.1.1</version>
+            <version>0.1.2-SNAPSHOT</version>
         </dependency>
 
         <!-- Test -->
