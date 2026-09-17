@@ -15,7 +15,7 @@ import io.smallrye.agentclientprotocol.sdk.registry.AcpRegistryManager;
  * Usage:
  *
  * <pre>{@code
- * acp reg remove opencode
+ * acp registry remove opencode
  * }</pre>
  *
  * <p>

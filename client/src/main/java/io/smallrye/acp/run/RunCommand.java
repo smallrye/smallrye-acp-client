@@ -1,4 +1,4 @@
-package io.smallrye.acp;
+package io.smallrye.acp.run;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -14,7 +14,6 @@ import org.aesh.command.invocation.CommandInvocation;
 import org.aesh.command.option.Option;
 import org.jboss.logging.Logger;
 
-import io.smallrye.acp.registry.RegistryCommand;
 import io.smallrye.acp.toolbox.GitUtil;
 import io.smallrye.acp.toolbox.ProjectUtil;
 import io.smallrye.agentclientprotocol.sdk.client.AcpClient;
@@ -27,7 +26,7 @@ import io.smallrye.agentclientprotocol.sdk.registry.model.Registry;
 import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
 
 /**
- * Aesh CLI command for any ACP-compatible agent (OpenCode, Claude, Pi, Gemini, etc.).
+ * Runs a headless (non-interactive) conversation with an ACP-compatible agent.
  *
  * <p>
  * Connects to an ACP agent over stdio, initializes a session,
@@ -43,27 +42,18 @@ import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
  *
  * <pre>{@code
  * # Using a known agent (resolves binary and args automatically)
- * acp --agent claude-acp --provider vertex-ai --model claude-opus-4-6 --prompt "Say hello"
+ * acp run --agent claude-acp --provider vertex-ai --model claude-opus-4-6 --prompt "Say hello"
  *
  * # Using a custom agent binary
- * acp --agent-binary my-agent --agent-args "serve" --prompt "Say hello"
+ * acp run --agent-binary my-agent --agent-args "serve" --prompt "Say hello"
  * }</pre>
  */
-@CommandDefinition(name = "acp", description = "acp tool for any acp compatible agent (OpenCode, Claude, Pi, Gemini, etc.)", generateHelp = true, groupCommands = {
-        RegistryCommand.class })
-public class AcpCommand implements Command<CommandInvocation> {
+@CommandDefinition(name = "run", description = "Run a headless (non-interactive) conversation with an ACP agent", generateHelp = true)
+public class RunCommand implements Command<CommandInvocation> {
 
-    private static final Logger logger = Logger.getLogger(AcpCommand.class);
-
-    // -- Agent resolution ----
-    // Agents are resolved dynamically from the ACP registry.
-    // Use 'acp install <agent-id>' to install an agent first.
-    // Agent IDs match the ACP registry (e.g. opencode, claude-acp, pi-acp, gemini).
+    private static final Logger logger = Logger.getLogger(RunCommand.class);
 
     private final AcpRegistryManager registryManager = new AcpRegistryManager();
-
-    // -- Provider env-var requirements per agent + provider ----
-    // Key format: "agent-id:provider". Checked before launching the agent.
 
     private static final Map<String, List<String>> PROVIDER_ENV_VARS = Map.ofEntries(
             Map.entry("opencode:zen", List.of()),
@@ -71,17 +61,16 @@ public class AcpCommand implements Command<CommandInvocation> {
                     List.of("GOOGLE_APPLICATION_CREDENTIALS", "VERTEX_LOCATION", "GOOGLE_CLOUD_PROJECT")),
             Map.entry("claude-acp:vertex-ai",
                     List.of("ANTHROPIC_VERTEX_PROJECT_ID", "CLAUDE_CODE_USE_VERTEX", "CLOUD_ML_REGION")),
-            Map.entry("pi-acp:vertex-ai", List.of("GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT", "CLOUD_ML_REGION")),
+            Map.entry("pi-acp:vertex-ai",
+                    List.of("GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT", "CLOUD_ML_REGION")),
             Map.entry("gemini:vertex-ai", List.of("GOOGLE_CLOUD_PROJECT")));
-
-    // -- Instance state ----
 
     private final StringBuilder thoughtBuffer = new StringBuilder();
     private volatile boolean messageOutputPending = false;
 
     // -- CLI options ----
 
-    @Option(shortName = 'a', name = "agent", description = "ACP agent registry ID: opencode, claude-acp, pi-acp, gemini, ... (use 'acp reg list --registry' to see all) [env: ACP_AGENT]")
+    @Option(shortName = 'a', name = "agent", defaultValue = "claude-acp", description = "ACP agent registry ID: opencode, claude-acp, pi-acp, gemini, ... (use 'acp registry list --remote' to see the available acp agents) [env: ACP_AGENT]")
     String agent;
 
     @Option(name = "agent-binary", description = "Override agent binary path (for custom agents) [env: ACP_AGENT_BINARY]")
@@ -90,14 +79,14 @@ public class AcpCommand implements Command<CommandInvocation> {
     @Option(name = "agent-args", description = "Override agent arguments (for custom agents) [env: ACP_AGENT_ARGS]")
     String acpAgentArgs;
 
-    @Option(shortName = 'p', name = "prompt", description = "The prompt text to send to the agent [env: ACP_PROMPT]")
+    @Option(shortName = 'p', name = "prompt", required = true, description = "The prompt text to send to the agent [env: ACP_PROMPT]")
     String prompt;
-
-    @Option(shortName = 'm', name = "model", description = "The model to use, e.g. claude-opus-4-6 (resolved per agent/provider) [env: ACP_MODEL]")
-    String model;
 
     @Option(name = "provider", description = "Provider: zen, vertex-ai [env: ACP_PROVIDER]")
     String provider;
+
+    @Option(shortName = 'm', name = "model", description = "The model to use, e.g. claude-opus-4-6 (resolved per agent/provider) [env: ACP_MODEL]")
+    String model;
 
     @Option(name = "request-timeout", description = "Timeout in seconds for requests (initialize, create session, etc.) [env: ACP_REQUEST_TIMEOUT]")
     Integer requestTimeout;
@@ -105,8 +94,11 @@ public class AcpCommand implements Command<CommandInvocation> {
     @Option(name = "prompt-request-timeout", description = "Timeout in seconds for prompt request; 0 means no timeout [env: ACP_PROMPT_REQUEST_TIMEOUT]")
     Integer promptRequestTimeout;
 
-    @Option(name = "permission-mode", description = "How to respond to agent permission requests: allow_always, allow_once, reject_once, reject_always [env: ACP_PERMISSION_MODE]")
+    @Option(name = "permission-mode", defaultValue = "allow_always", description = "How to respond to agent permission requests: allow_always, allow_once, reject_once, reject_always [env: ACP_PERMISSION_MODE]")
     String permissionMode;
+
+    @Option(shortName = 's', name = "skill-path", description = "Absolute path to a skills folder to add as additional directory [env: SKILL_PATH]")
+    String skillPath;
 
     @Option(shortName = 'b', name = "backup", description = "Backup workspace to target/workdirs before running: yes, no (default: yes). Only applies to Maven/Gradle projects [env: ACP_BACKUP]")
     String backup;
@@ -117,21 +109,17 @@ public class AcpCommand implements Command<CommandInvocation> {
     @Option(aliases = "wks", name = "workspace-path", description = "Absolute path to the project/workspace directory used as CWD for the session. If not set, defaults to the directory where the command is executed [env: WORKSPACE_PATH]")
     String workspacePath;
 
-    @Option(shortName = 's', name = "skill-path", description = "Absolute path to a skills folder to add as additional directory [env: SKILL_PATH]")
-    String skillPath;
-
-    @Option(shortName = 'l', name = "log-level", description = "Log level: INFO, DEBUG, TRACE, WARNING, SEVERE [env: ACP_LOG_LEVEL]")
-    String logLevel;
-
     @Option(shortName = 'o', name = "output", description = "Output mode: default (human-friendly), json (raw JSON-RPC messages) [env: ACP_OUTPUT]")
     String output;
 
     @Option(shortName = 'v', name = "verbose", description = "Enable to log JSON RPC messages [env: ACP_VERBOSE]", hasValue = false)
     boolean verbose;
 
+    @Option(shortName = 'l', name = "log-level", description = "Log level: INFO, DEBUG, TRACE, WARNING, SEVERE [env: ACP_LOG_LEVEL]")
+    String logLevel;
+
     @Override
     public CommandResult execute(CommandInvocation invocation) {
-        // Resolve output mode and verbose flag before configuring logging
         output = ProjectUtil.resolveValueWithPrecedence(output, "ACP_OUTPUT", "default");
         boolean useJsonOutput = "json".equalsIgnoreCase(output);
         boolean useVerbose = verbose || "true".equalsIgnoreCase(System.getenv("ACP_VERBOSE"));
@@ -139,12 +127,10 @@ public class AcpCommand implements Command<CommandInvocation> {
 
         configureLogging(useJsonOutput, useVerbose, logLevel);
 
-        // Resolve options: CLI arg > env var > default
         prompt = ProjectUtil.resolveValueWithPrecedence(prompt, "ACP_PROMPT", "Say Hello");
         permissionMode = ProjectUtil.resolveValueWithPrecedence(permissionMode, "ACP_PERMISSION_MODE", "allow_always");
 
-        // -- Resolve agent binary and args ----
-        agent = ProjectUtil.resolveValueWithPrecedence(agent, "ACP_AGENT", "opencode");
+        agent = ProjectUtil.resolveValueWithPrecedence(agent, "ACP_AGENT", agent);
         acpAgentBinary = ProjectUtil.resolveValueWithPrecedence(acpAgentBinary, "ACP_AGENT_BINARY", null);
         acpAgentArgs = ProjectUtil.resolveValueWithPrecedence(acpAgentArgs, "ACP_AGENT_ARGS", null);
 
@@ -164,28 +150,25 @@ public class AcpCommand implements Command<CommandInvocation> {
                 if (registry != null && registryManager.findAgent(registry, agent) != null) {
                     invocation.println("ERROR: Agent '" + agent
                             + "' exists in the ACP registry but is not installed.");
-                    invocation.println("Run:  acp reg install " + agent);
+                    invocation.println("Run:  acp registry install " + agent);
                 } else {
                     invocation.println("ERROR: Unknown agent '" + agent + "'.");
-                    invocation.println("Run:  acp reg list --registry   to see available agents.");
-                    invocation.println("      acp reg install <id>      to install one.");
+                    invocation.println("Run:  acp registry list --remote   to see available agents.");
+                    invocation.println("      acp registry install <id>      to install one.");
                 }
                 invocation.println("Alternatively, use --agent-binary to specify the agent binary directly.");
                 return CommandResult.FAILURE;
             }
         }
 
-        // -- Resolve and normalize provider ----
         provider = ProjectUtil.resolveValueWithPrecedence(provider, "ACP_PROVIDER", "zen");
         provider = normalizeProvider(provider);
 
-        // -- Resolve model name ----
         model = ProjectUtil.resolveValueWithPrecedence(model, "ACP_MODEL", null);
         if (model != null) {
             model = resolveModelName(agent, provider, model);
         }
 
-        // -- Timeouts ----
         String reqTimeoutStr = ProjectUtil.resolveValueWithPrecedence(
                 requestTimeout != null ? requestTimeout.toString() : null,
                 "ACP_REQUEST_TIMEOUT", "30");
@@ -195,17 +178,15 @@ public class AcpCommand implements Command<CommandInvocation> {
                 promptRequestTimeout != null ? promptRequestTimeout.toString() : null,
                 "ACP_PROMPT_REQUEST_TIMEOUT", "0");
         long promptRequestTimeoutSecs = Long.parseLong(promptRequestTimeoutStr);
-        Duration pRequestTimeout = promptRequestTimeoutSecs > 0 ? Duration.ofSeconds(promptRequestTimeoutSecs) : Duration.ZERO;
+        Duration pRequestTimeout = promptRequestTimeoutSecs > 0 ? Duration.ofSeconds(promptRequestTimeoutSecs)
+                : Duration.ZERO;
 
-        // 0. Check for required env variables based on agent + provider
         checkProviderEnv(agent, provider);
 
-        // 0b. Resolve workspace path: CLI/env > current directory
         workspacePath = ProjectUtil.resolveValueWithPrecedence(workspacePath, "WORKSPACE_PATH", null);
         String sessionCwd = workspacePath != null ? workspacePath : System.getProperty("user.dir");
         logger.debugf("Current workspace: %s", sessionCwd);
 
-        // 0c. Backup workspace if requested and project is Maven/Gradle
         backup = ProjectUtil.resolveValueWithPrecedence(backup, "ACP_BACKUP", "yes");
         backupProjectName = ProjectUtil.resolveValueWithPrecedence(backupProjectName, "ACP_BACKUP_PROJECT_NAME", ".");
         if ("yes".equalsIgnoreCase(backup)) {
@@ -217,7 +198,6 @@ public class AcpCommand implements Command<CommandInvocation> {
         }
         final String cwd = sessionCwd;
 
-        // 0d. Resolve skill path (URL → local path if needed)
         skillPath = ProjectUtil.resolveValueWithPrecedence(skillPath, "SKILL_PATH", null);
         if (GitUtil.isUrl(skillPath)) {
             try {
@@ -229,7 +209,6 @@ public class AcpCommand implements Command<CommandInvocation> {
             }
         }
 
-        // 1. Configure agent parameters
         var paramBuilder = AgentParameters.builder(binary);
         if (args != null && !args.isEmpty()) {
             for (String a : args.split(",")) {
@@ -241,13 +220,8 @@ public class AcpCommand implements Command<CommandInvocation> {
         }
         var params = paramBuilder.build();
 
-        // 2. Create transport
         var transport = new StdioAcpClientTransport(params);
 
-        // 3. Build sync client and configure output mode:
-        //   json    — raw JSON-RPC lines to stdout (inbound + outbound), silent notification handlers
-        //   verbose — human-friendly agent messages + detailed INFO-level logging of all notifications
-        //   default — human-friendly agent messages only, notifications logged at DEBUG level
         var clientBuilder = AcpClient.sync(transport)
                 .withRequestTimeout(reqTimeout)
                 .withPromptRequestTimeout(pRequestTimeout)
@@ -256,21 +230,18 @@ public class AcpCommand implements Command<CommandInvocation> {
         configureOutputMode(clientBuilder, transport, useJsonOutput, useVerbose);
 
         try (AcpSyncClient client = clientBuilder.build()) {
-
-            // 4. Execute the ACP session workflow
             if (!useJsonOutput) {
                 invocation.println("Starting the AI conversation ...");
             }
             AcpSessionResult result = client.workflow()
                     .initialize()
-                    .onInitialized(AcpCommand::logInitialized)
+                    .onInitialized(RunCommand::logInitialized)
                     .newSession(cwd)
                     .onSessionCreated(session -> logSessionCreated(session, cwd))
                     .model(model)
                     .skill(skillPath)
                     .prompt(prompt)
                     .runSession();
-            // Drain any remaining thoughts and ensure the last agent message ends with a newline
             flushOutput();
             logger.debugf("Done! Stop reason: %s", result.stopReason());
 
@@ -282,12 +253,6 @@ public class AcpCommand implements Command<CommandInvocation> {
         }
     }
 
-    // -- Notification and permission configuration ----
-
-    /**
-     * Configures the client output mode by selecting the appropriate notification handlers
-     * and, for JSON mode, attaching raw message listeners to the transport.
-     */
     private void configureOutputMode(AcpClient.SyncBuilder builder, StdioAcpClientTransport transport,
             boolean jsonOutput, boolean verbose) {
         if (jsonOutput) {
@@ -300,11 +265,6 @@ public class AcpCommand implements Command<CommandInvocation> {
         }
     }
 
-    /**
-     * Configures human-friendly handlers: agent messages stream to stdout,
-     * thoughts are buffered at DEBUG level, other notifications logged at DEBUG.
-     * Permissions log title, kind, and selected option.
-     */
     private void configureDefault(AcpClient.SyncBuilder builder) {
         builder.withNotifications(n -> n
                 .onAgentMessage(chunk -> {
@@ -357,10 +317,6 @@ public class AcpCommand implements Command<CommandInvocation> {
                 });
     }
 
-    /**
-     * Configures verbose handlers that log every notification and permission field at INFO.
-     * Thoughts stream to stdout and are also logged; tool calls include rawInput/rawOutput.
-     */
     private void configureVerbose(AcpClient.SyncBuilder builder) {
         builder.withNotifications(n -> n
                 .onAgentMessage(chunk -> {
@@ -405,13 +361,14 @@ public class AcpCommand implements Command<CommandInvocation> {
                     flushOutput();
                     logger.infof("[Plan] %d steps:", plan.entries().size());
                     plan.entries()
-                            .forEach(e -> logger.infof("  - [%s] %s (priority=%s)", e.status(), e.content(), e.priority()));
+                            .forEach(e -> logger.infof("  - [%s] %s (priority=%s)", e.status(), e.content(),
+                                    e.priority()));
                 })
                 .onAvailableCommands(cmds -> {
                     flushOutput();
-                    logger.infof("[Commands] %d available:", cmds.availableCommands().size());
+                    logger.debugf("[Commands] %d available:", cmds.availableCommands().size());
                     cmds.availableCommands()
-                            .forEach(c -> logger.infof("  /%s - %s", c.name(), c.description()));
+                            .forEach(c -> logger.debugf("  /%s - %s", c.name(), c.description()));
                 })
                 .onConfigOption(config -> {
                     flushOutput();
@@ -446,31 +403,6 @@ public class AcpCommand implements Command<CommandInvocation> {
                 });
     }
 
-    // -- Logging configuration ----
-
-    /**
-     * Configures logging based on output mode, verbose flag, and explicit log level.
-     *
-     * <p>
-     * This method adjusts levels at runtime based on the active flags:
-     *
-     * <ul>
-     * <li><b>JSON output</b> — suppresses all log categories ({@code OFF}) so that stdout
-     * contains only raw JSON-RPC protocol lines for machine parsing.</li>
-     * <li><b>Verbose</b> — lowers {@code io.smallrye.acp} categories to {@code INFO} so
-     * notification details (tool calls, thoughts, usage, permissions) reach the console.</li>
-     * <li><b>Explicit level</b> — overrides the verbose default with the user-specified
-     * level (e.g. {@code DEBUG}, {@code TRACE}).</li>
-     * </ul>
-     *
-     * <p>
-     * Precedence: {@code jsonOutput} wins (all output suppressed), then {@code explicitLevel},
-     * then {@code verbose}.
-     *
-     * @param jsonOutput {@code true} to suppress all log output for JSON-RPC mode
-     * @param verbose {@code true} to enable INFO-level logging for verbose mode
-     * @param explicitLevel an explicit JUL level string (e.g. {@code "DEBUG"}), or {@code null}
-     */
     private static void configureLogging(boolean jsonOutput, boolean verbose, String explicitLevel) {
         if (jsonOutput) {
             java.util.logging.Logger.getLogger("io.smallrye.acp").setLevel(Level.OFF);
@@ -500,8 +432,6 @@ public class AcpCommand implements Command<CommandInvocation> {
         }
     }
 
-    // -- Provider normalization ----
-
     private static String normalizeProvider(String provider) {
         return switch (provider) {
             case "opencode-zen", "zen" -> "zen";
@@ -511,8 +441,6 @@ public class AcpCommand implements Command<CommandInvocation> {
             default -> provider;
         };
     }
-
-    // -- Model name resolution ----
 
     private static String resolveModelName(String agent, String provider, String model) {
         if (model.contains("/")) {
@@ -524,12 +452,6 @@ public class AcpCommand implements Command<CommandInvocation> {
         return model;
     }
 
-    // -- Session lifecycle logging ----
-
-    /**
-     * Logs agent metadata after a successful ACP initialization handshake:
-     * agent name, version, title, protocol version, capabilities, and auth methods.
-     */
     private static void logInitialized(InitializeResponse init) {
         var agentInfo = init.agentInfo();
         String title = agentInfo.title();
@@ -544,10 +466,6 @@ public class AcpCommand implements Command<CommandInvocation> {
         logger.debugf("Auth methods: %s", init.authMethods());
     }
 
-    /**
-     * Logs session creation details: session ID, working directory,
-     * and the active model (if reported in the session config options).
-     */
     private static void logSessionCreated(NewSessionResponse session, String cwd) {
         logger.debugf("Session created: %s with CWD: %s", session.sessionId(), cwd);
         if (session.configOptions() != null) {
@@ -558,18 +476,6 @@ public class AcpCommand implements Command<CommandInvocation> {
         }
     }
 
-    // -- Output helpers ----
-
-    /**
-     * Flushes any buffered thoughts and finalizes pending agent message output.
-     *
-     * <p>
-     * Agent messages are streamed to stdout via {@code System.out.print()} without
-     * a trailing newline (to allow incremental output). This method appends the
-     * final newline when no more chunks are expected, and drains any accumulated
-     * thought content to the logger. Called between notification types to ensure
-     * clean output boundaries.
-     */
     private void flushOutput() {
         flushThoughts();
         if (messageOutputPending) {
@@ -578,9 +484,6 @@ public class AcpCommand implements Command<CommandInvocation> {
         }
     }
 
-    /**
-     * Drains the thought buffer to the logger at DEBUG level and resets it.
-     */
     private void flushThoughts() {
         if (!thoughtBuffer.isEmpty()) {
             logger.debugf("[Thought] %s", thoughtBuffer.toString().strip());
@@ -588,10 +491,6 @@ public class AcpCommand implements Command<CommandInvocation> {
         }
     }
 
-    /**
-     * Extracts text from a content object. Handles both {@link Map}-based content
-     * (with a {@code "text"} key) and plain objects by calling {@code toString()}.
-     */
     private static String extractText(Object content) {
         if (content instanceof Map<?, ?> map) {
             Object text = map.get("text");
@@ -599,8 +498,6 @@ public class AcpCommand implements Command<CommandInvocation> {
         }
         return content != null ? content.toString() : "";
     }
-
-    // -- Provider env-var validation ----
 
     private static void checkProviderEnv(String agent, String provider) {
         String key = agent + ":" + provider;

@@ -76,7 +76,7 @@ public class StdioAcpClientTransport {
     private Consumer<String> rawOutboundListener;
 
     /**
-     * Creates a transport with the default {@link ObjectMapper} configuration.
+     * Creates transport with the default {@link ObjectMapper} configuration.
      *
      * @param params the agent process configuration
      */
