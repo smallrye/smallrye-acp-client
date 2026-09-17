@@ -135,6 +135,18 @@ public class AcpRegistryManager {
                 .orElse(null);
     }
 
+    /**
+     * Loads a registry from a local JSON file.
+     *
+     * @param registryFile path to the registry JSON file
+     * @return the parsed registry
+     * @throws IOException if the file cannot be read or parsed
+     */
+    public Registry loadRegistryFromFile(Path registryFile) throws IOException {
+        logger.infof("Loading registry from file: %s", registryFile);
+        return MAPPER.readValue(registryFile.toFile(), Registry.class);
+    }
+
     // ── Install operations ──────────────────────────────────────────────────
 
     /**
@@ -151,6 +163,19 @@ public class AcpRegistryManager {
      */
     public void installAgent(String agentId, boolean force) throws IOException, InterruptedException {
         Registry registry = fetchRegistry();
+        installAgent(agentId, force, registry);
+    }
+
+    /**
+     * Installs an ACP agent using a pre-loaded registry (e.g. from a local file).
+     *
+     * @param agentId the agent identifier to install
+     * @param force if {@code true}, reinstall even if the agent is already present
+     * @param registry the registry to resolve the agent from
+     * @throws IOException if downloading or extracting fails
+     * @throws InterruptedException if the operation is interrupted
+     */
+    public void installAgent(String agentId, boolean force, Registry registry) throws IOException, InterruptedException {
         Agent agent = findAgent(registry, agentId);
 
         if (agent == null) {
@@ -292,7 +317,7 @@ public class AcpRegistryManager {
         output.info("  Running: npm install " + packageName + " ...");
         RegistryUtils.runProcess(agentDir, "npm", "install", "--prefix", agentDir.toString(), packageName);
 
-        String binName = RegistryUtils.resolveBinName(packageName);
+        String binName = npx.binName() != null ? npx.binName() : RegistryUtils.resolveBinName(packageName);
         Path binPath = agentDir.resolve("node_modules").resolve(".bin").resolve(binName);
 
         if (!Files.exists(binPath)) {

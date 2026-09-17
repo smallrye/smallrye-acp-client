@@ -8,13 +8,16 @@ acp registry install -- Install an ACP agent from the registry
 
 [source]
 ----
-acp registry install [-f] <agentId>
+acp registry install [-f] [--registry-file=<registry-file>] <agentId>
 ----
 
 == OPTIONS
 
 *-f*, *--force*::
 Force reinstall even if the agent is already installed
+
+*--registry-file*=<registry-file>::
+Path to a local registry JSON file (bypasses the remote registry fetch)
 
 == ARGUMENTS
 

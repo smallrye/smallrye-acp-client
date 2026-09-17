@@ -1,5 +1,7 @@
 package io.smallrye.acp.registry;
 
+import java.nio.file.Path;
+
 import org.aesh.command.Command;
 import org.aesh.command.CommandDefinition;
 import org.aesh.command.CommandResult;
@@ -10,7 +12,7 @@ import org.aesh.command.option.Option;
 import io.smallrye.agentclientprotocol.sdk.registry.AcpRegistryManager;
 
 /**
- * Subcommand that installs an ACP agent from the remote registry.
+ * Subcommand that installs an ACP agent from the remote registry or a local registry file.
  *
  * <p>
  * Usage:
@@ -18,6 +20,7 @@ import io.smallrye.agentclientprotocol.sdk.registry.AcpRegistryManager;
  * <pre>{@code
  * acp registry install opencode
  * acp registry install claude-acp --force
+ * acp registry install bob-acp --registry-file /path/to/custom-registry.json
  * }</pre>
  *
  * <p>
@@ -33,11 +36,19 @@ public class InstallCommand implements Command<CommandInvocation> {
     @Option(shortName = 'f', name = "force", hasValue = false, description = "Force reinstall even if the agent is already installed")
     boolean force;
 
+    @Option(name = "registry-file", description = "Path to a local registry JSON file (bypasses the remote registry fetch)")
+    String registryFile;
+
     @Override
     public CommandResult execute(CommandInvocation invocation) {
         try {
             var manager = new AcpRegistryManager(new AeshOutputHandler(invocation));
-            manager.installAgent(agentId, force);
+            if (registryFile != null) {
+                var registry = manager.loadRegistryFromFile(Path.of(registryFile));
+                manager.installAgent(agentId, force, registry);
+            } else {
+                manager.installAgent(agentId, force);
+            }
             return CommandResult.SUCCESS;
         } catch (Exception e) {
             invocation.println("Error installing agent: " + e.getMessage());
