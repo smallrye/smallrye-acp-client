@@ -1,0 +1,16 @@
+= ACP-MODEL
+
+== NAME
+
+acp model -- Manage model: list
+
+== SYNOPSIS
+
+[source]
+----
+acp model [COMMAND]
+----
+
+== COMMANDS
+
+* link:acp-model-list.adoc[*list*] - Display the models available for an agent to interact with the LLM model

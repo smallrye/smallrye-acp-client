@@ -1,0 +1,17 @@
+= ACP-REGISTRY-LIST
+
+== NAME
+
+acp registry list -- List ACP agents (installed or from the registry)
+
+== SYNOPSIS
+
+[source]
+----
+acp registry list [-r]
+----
+
+== OPTIONS
+
+*-r*, *--registry*::
+List all agents from the remote ACP registry instead of the locally installed

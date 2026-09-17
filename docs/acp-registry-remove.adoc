@@ -1,0 +1,17 @@
+= ACP-REGISTRY-REMOVE
+
+== NAME
+
+acp registry remove -- Remove an installed ACP agent
+
+== SYNOPSIS
+
+[source]
+----
+acp registry remove <agentId>
+----
+
+== ARGUMENTS
+
+*<agentId>*::
+Agent ID to remove (e.g. opencode, claude-acp)

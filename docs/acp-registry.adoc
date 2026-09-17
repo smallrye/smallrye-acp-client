@@ -1,0 +1,19 @@
+= ACP-REGISTRY
+
+== NAME
+
+acp registry -- Manage ACP agents via the registry: list, install, remove
+
+== SYNOPSIS
+
+[source]
+----
+acp registry [COMMAND]
+----
+
+== COMMANDS
+
+* link:acp-registry-list.adoc[*list*] - List ACP agents (installed or from the registry)
+* link:acp-registry-install.adoc[*install*] - Install an ACP agent from the registry
+* link:acp-registry-remove.adoc[*remove*] - Remove an installed ACP agent
+
