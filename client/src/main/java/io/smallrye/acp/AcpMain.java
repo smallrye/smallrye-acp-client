@@ -11,7 +11,7 @@ public class AcpMain implements QuarkusApplication {
     @Override
     public int run(String... args) throws Exception {
         AeshRuntimeRunner.builder()
-                .command(AcpCommand.class)
+                .command(AcpCommands.class)
                 .args(args)
                 .execute();
         return 0;

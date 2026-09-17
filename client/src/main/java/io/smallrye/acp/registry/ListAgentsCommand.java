@@ -21,21 +21,21 @@ import io.smallrye.agentclientprotocol.sdk.registry.model.Agent;
  * Usage:
  *
  * <pre>{@code
- * acp reg list              # installed agents
- * acp reg list --registry   # all agents from the remote ACP registry
+ * acp registry list              # installed agents
+ * acp registry list --remote     # all available agents from the remote ACP registry
  * }</pre>
  */
-@CommandDefinition(name = "list", description = "List ACP agents (installed or from the registry)")
+@CommandDefinition(name = "list", description = "List ACP agents: installed or from the remote acp registry.")
 public class ListAgentsCommand implements Command<CommandInvocation> {
 
-    @Option(shortName = 'r', name = "registry", hasValue = false, description = "List all agents from the remote ACP registry instead of installed ones")
-    boolean fromRegistry;
+    @Option(shortName = 'r', name = "remote", hasValue = false, description = "List all agents from the remote ACP registry instead of the locally installed")
+    boolean fromRemoteRegistry;
 
     @Override
     public CommandResult execute(CommandInvocation invocation) {
         var manager = new AcpRegistryManager(new AeshOutputHandler(invocation));
         try {
-            if (fromRegistry) {
+            if (fromRemoteRegistry) {
                 listRegistryAgents(manager, invocation);
             } else {
                 listInstalledAgents(manager, invocation);
@@ -84,25 +84,25 @@ public class ListAgentsCommand implements Command<CommandInvocation> {
         var installed = manager.listInstalled();
         if (installed.isEmpty()) {
             invocation.println("No ACP agents installed in " + AcpRegistryManager.ACP_HOME);
-            invocation.println("");
-            invocation.println("  acp reg list --registry   list available agents");
-            invocation.println("  acp reg install <id>      install an agent");
+            invocation.println("Issue the following commands to install it: ");
+            invocation.println("  acp registry list --remote    list available agents from the ACP registry");
+            invocation.println("  acp registry install <id>     install an agent");
             return;
         }
 
-        invocation.println("Installed ACP agents (" + AcpRegistryManager.ACP_HOME + "):");
+        invocation.println("Installed ACP agents (" + AcpRegistryManager.ACP_HOME + "/agents/):");
         invocation.println("");
-        invocation.println(String.format("%-25s %-12s %-8s %-18s %s",
-                "ID", "VERSION", "TYPE", "PLATFORM", "COMMAND"));
-        invocation.println("-".repeat(95));
+        invocation.println(String.format("%-20s %-12s %-8s %-18s %s",
+                "ID", "VERSION", "TYPE", "PLATFORM", "BINARY"));
+        invocation.println("-".repeat(120));
 
         for (var agent : installed) {
-            invocation.println(String.format("%-25s %-12s %-8s %-18s %s",
+            invocation.println(String.format("%-20s %-12s %-8s %-18s %s",
                     agent.id(),
                     agent.version(),
                     agent.distributionType(),
                     agent.platform(),
-                    truncate(agent.cmd(), 30)));
+                    truncate(agent.cmd(), 120)));
         }
     }
 

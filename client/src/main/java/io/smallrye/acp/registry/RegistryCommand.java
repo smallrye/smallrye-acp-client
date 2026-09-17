@@ -12,23 +12,27 @@ import org.aesh.command.invocation.CommandInvocation;
  * Usage:
  *
  * <pre>{@code
- * acp reg list                # installed agents
- * acp reg list --registry     # remote registry
- * acp reg install opencode    # install an agent
- * acp reg remove opencode     # remove an installed agent
+ * acp registry list                # installed acp agents
+ * acp registry list --remote       # available agents from remote acp registry
+ * acp registry install opencode    # install an acp agent
+ * acp registry remove opencode     # remove an installed acp agent
  * }</pre>
  */
-@CommandDefinition(name = "reg", description = "Manage ACP agents via the registry (list, install, remove)", groupCommands = {
+@CommandDefinition(name = "registry", description = "Manage ACP agents via the registry: list, install, remove", groupCommands = {
         ListAgentsCommand.class, InstallCommand.class, RemoveCommand.class })
 public class RegistryCommand implements Command<CommandInvocation> {
 
     @Override
     public CommandResult execute(CommandInvocation invocation) {
-        invocation.println("Usage: acp reg <command>");
+        invocation.println(
+                "Manage ACP-compatible agents locally using the https://agentclientprotocol.com/get-started/registry.");
+        invocation.println("");
+        invocation.println("Usage: acp registry <command>");
         invocation.println("");
         invocation.println("Commands:");
-        invocation.println("  list      List ACP agents (installed or from the registry)");
-        invocation.println("  install   Install an ACP agent from the registry");
+        invocation.println(
+                "  list      List ACP agents: installed or available from the registry");
+        invocation.println("  install   Install an ACP agent from the remote registry under $HOME/.acp/agents");
         invocation.println("  remove    Remove an installed ACP agent");
         return CommandResult.SUCCESS;
     }

@@ -156,7 +156,7 @@ public class AcpRegistryManager {
         if (agent == null) {
             output.error("Agent '" + agentId + "' not found in the ACP registry.");
             output.error("");
-            output.error("Run:  acp reg list --registry   to see available agents.");
+            output.error("Run:  acp registry list --remote   to see available agents.");
             return;
         }
 
@@ -447,7 +447,7 @@ public class AcpRegistryManager {
         if (installed == null) {
             output.error("Agent '" + agentId + "' is not installed.");
             output.error("");
-            output.error("Run:  acp reg list   to see installed agents.");
+            output.error("Run:  acp registry list   to see installed agents.");
             return;
         }
 

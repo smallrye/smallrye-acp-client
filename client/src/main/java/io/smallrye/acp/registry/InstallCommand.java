@@ -16,8 +16,8 @@ import io.smallrye.agentclientprotocol.sdk.registry.AcpRegistryManager;
  * Usage:
  *
  * <pre>{@code
- * acp reg install opencode
- * acp reg install claude-acp --force
+ * acp registry install opencode
+ * acp registry install claude-acp --force
  * }</pre>
  *
  * <p>
@@ -27,7 +27,7 @@ import io.smallrye.agentclientprotocol.sdk.registry.AcpRegistryManager;
 @CommandDefinition(name = "install", description = "Install an ACP agent from the registry")
 public class InstallCommand implements Command<CommandInvocation> {
 
-    @Argument(description = "Agent ID from the ACP registry (e.g. opencode, claude-acp, gemini)", required = true)
+    @Argument(description = "Agent identifier from the ACP registry (e.g. opencode, claude-acp, gemini)", required = true)
     String agentId;
 
     @Option(shortName = 'f', name = "force", hasValue = false, description = "Force reinstall even if the agent is already installed")

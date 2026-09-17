@@ -13,7 +13,7 @@ The project implements the [ACP Schema Specification v1](https://agentclientprot
 | `schema`   | `acp-schema`     | ACP JSON Schema (`v1`), generated Java records/enums, and `JSonSchemaGenerator` code generator                   |
 | `registry` | `acp-registry`   | Agent registry: discovery, installation (binary/npx/uvx) and resolution of ACP agents                           |
 | `core`     | `acp-core`       | ACP client library: fluent builder, session workflow, notification router, stdio transport                       |
-| `client`   | `acp-client`     | Aesh CLI (`AcpCommand`), skills, and sandbox. Depends on `core` and `registry`. Built as Quarkus uber-jar        |
+| `client`   | `acp-client`     | Aesh CLI (`AcpCommands`): `run`, `reg`, `model` subcommands. Depends on `core` and `registry`. Built as Quarkus uber-jar |
 
 ## Prerequisites
 
@@ -21,13 +21,6 @@ The project implements the [ACP Schema Specification v1](https://agentclientprot
 - [Apache Maven 3.9+](https://maven.apache.org/)
 - Any ACP-compatible agent (see [Agents and providers](#agents-and-providers) for the list of some agents and how to install them)
 - (Optional) [JBang](https://www.jbang.dev/) for running the CLI via catalog
-
-## Build
-
-Compile the project and build the uber-jar:
-```shell
-mvn clean install
-```
 
 ## Core library
 
@@ -38,6 +31,11 @@ The `core` module (`acp-core`) provides a fluent Java API to build ACP clients, 
 Use `AcpClient.sync()` or `AcpClient.async()` to create a builder. The builder supports fluent configuration of timeouts, typed notification handlers, and permission handling.
 
 ```java
+ var agentParams = AgentParameters.builder("opencode")
+              .arg("acp")
+              .addEnvVar("OPENCODE_MODEL", "anthropic/claude-sonnet")
+              .build();
+
 var transport = new StdioAcpClientTransport(agentParams);
 
 try (AcpSyncClient client = AcpClient.sync(transport)
@@ -106,12 +104,11 @@ AcpSessionResult result = client.workflow()
         .execute();
 ```
 
-The `mcpServer()` call is optional. It accepts any of the three transport types defined by the ACP schema:
+The `mcpServer()` call is optional. It accepts any of the transport types defined by the ACP schema:
 
 | Record | Transport | Required fields |
 |--------|-----------|-----------------|
 | `McpServerStdio` | stdio | `name`, `command`, `args`, `env` |
-| `McpServerSse` | SSE | `name`, `url`, `headers` |
 | `McpServerHttp` | HTTP | `name`, `url`, `headers` |
 
 The workflow returns an `AcpSessionResult` containing all intermediate responses:
@@ -143,7 +140,7 @@ PromptResponse prompt = result.promptResponse();
 |--------|----------|-------------|
 | `initialize()` | yes | Performs the ACP handshake with the agent |
 | `newSession(String cwd)` | yes | Creates a session with the given workspace directory |
-| `mcpServer(Object)` / `mcpServers(List)` | no | MCP servers the agent should connect to (`McpServerStdio`, `McpServerSse`, or `McpServerHttp`) |
+| `mcpServer(Object)` / `mcpServers(List)` | no | MCP servers the agent should connect to (`McpServerStdio` or `McpServerHttp`) |
 | `model(String)` | no | Sets the model (e.g. `"claude-opus-4-6"`). Silently skipped if the agent doesn't support config options |
 | `skill(String)` | no | Appends skill instructions to the prompt |
 | `prompt(String)` | yes | Sets the prompt text to send |
@@ -235,10 +232,6 @@ try (AcpSyncClient client = AcpClient.sync(transport)
 }
 ```
 
-## ACP CLI
-
-The `client` module provides a CLI tool (`acp`) built on the core library. It wraps the fluent API into a single command that connects to any ACP-compatible agent, runs a prompt, and streams the output to the console.
-
 ### Running with `java -jar`
 
 Export the current version from the project's clone:
@@ -248,17 +241,20 @@ export VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout
 Then execute one of the following commands:
 ```shell
 # Default prompt: "Say Hello" with OpenCode agent
-java -jar client/target/acp-java-client-${VERSION}-runner.jar
+java -jar client/target/acp-java-client-${VERSION}-runner.jar run
 
 # Custom prompt
-java -jar client/target/acp-java-client-${VERSION}-runner.jar --prompt "What is 6+6?"
+java -jar client/target/acp-java-client-${VERSION}-runner.jar run -p "What is 6+6?"
 
 # With a specific agent, provider, and model
-java -jar client/target/acp-java-client-${VERSION}-runner.jar \
-  --agent claude-acp \
+java -jar client/target/acp-java-client-${VERSION}-runner.jar run \
+  -a claude-acp \
   --provider vertex-ai \
   --model claude-opus-4-6 \
-  --prompt "Say hello"
+  -p "Say hello"
+
+# List models available for an installed agent
+java -jar client/target/acp-java-client-${VERSION}-runner.jar model list -a opencode
 ```
 
 ### Running with JBang
@@ -267,7 +263,7 @@ A [JBang catalog](https://www.jbang.dev/documentation/guide/latest/alias_catalog
 
 ```shell
 # Run from the project root using the local catalog and uber jar generated under client/target/
-jbang acp --prompt "What is 6+6?"
+jbang acp run -p "What is 6+6?"
 ```
 
 To install the tool for use outside this project, use the Maven GAV with a released version:
@@ -275,7 +271,7 @@ To install the tool for use outside this project, use the Maven GAV with a relea
 jbang app install --name acp io.smallrye.ai:acp-java-client:0.1.0:runner
 
 cd /java/project/to/code/using/ai
-acp --prompt "Say hello"
+acp run -p "Say hello"
 ```
 The command supports autocompletion:
 ```shell
@@ -285,127 +281,198 @@ source <(acp generate-completion)
 ### Running with Quarkus dev mode
 
 ```shell
-mvn quarkus:dev -pl client -Dquarkus.args="--prompt 'Say Hello'"
+mvn quarkus:dev -pl client -Dquarkus.args="run -p 'Say Hello'"
 ```
 
-### Example output
+## ACP CLI
 
-By default the CLI only shows agent messages — no log noise:
+The `client` module provides a Quarkus client tool (`acp`) built using the modules: `core` and `registry` and [Aesh](https://github.com/aeshell/aesh) to design the 
+commands. See commands documentation [page](docs/acp.adoc) for more details.
+
+### Build
+
+Compile the project and build the uber-jar:
+```shell
+mvn clean install
+```
+
+### Running with Quarkus dev mode
 
 ```shell
-$ acp --prompt "Say Hello"
+mvn quarkus:dev -pl client -Dquarkus.args="run -p 'Say Hello'"
+```
+
+### Running with `java -jar`
+
+Export the current version of the project:
+```shell
+export VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+```
+Then execute one of the following commands:
+```shell
+# Custom prompt
+java -jar client/target/acp-java-client-${VERSION}-runner.jar run -p "What is 6+6?"
+
+# With a specific agent, provider, and model
+java -jar client/target/acp-java-client-${VERSION}-runner.jar run \
+  --agent claude-acp \
+  --provider vertex-ai \
+  --model claude-opus-4-6 \
+  -p "Say hello"
+
+# List models available for an installed agent
+java -jar client/target/acp-java-client-${VERSION}-runner.jar model list -a opencode
+Fetching ACP Agent models ...
+
+List of LLM models available for the agent 'opencode':
+
+  NAME                                                         VALUE TO BE USED
+  ------------------------------------------------------------------------------------------
+  Vertex/Claude Fable 5                                        google-vertex/claude-fable-5@default
+  Vertex/Claude Fable 5.1                                      google-vertex/claude-fable-5-1@default
+...  
+```
+
+### Running with JBang
+
+- Option A: using local catalog
+A [JBang catalog](https://www.jbang.dev/documentation/jbang/latest/alias_catalogs.html) file is provided at the project root: `jbang-catalog.json` 
+
+```json
+{
+  "aliases": {
+    "acp": {
+      "script-ref": "client/target/acp-java-client-0.1.2-SNAPSHOT-runner.jar",
+      "description": "ACP Java Client for any ACP-compatible agent"
+    }
+  }
+}
+```
+
+and can be used to install the client using a project build locally.
+
+```shell
+jbang acp run -p "What is 6+6?"
+```
+
+- Option B: using released version
+
+To install the client using a released version published on maven central, execute the following command:
+```shell
+jbang app install --name acp io.smallrye.ai:acp-java-client:0.1.1:runner
+
+cd /java/project/to/code/using/ai
+acp run -p "Say hello"
+```
+
+### Output modes
+
+The CLI supports three output modes that control what is printed to the console. The mode is selected via the `-o` / `--output` and `-v` / `--verbose` flags.
+
+| Mode | Flag | Agent messages | Notifications | Log output |
+|------|------|----------------|---------------|------------|
+| **default** | _(none)_ | streamed to stdout | silent (DEBUG level) | suppressed (WARNING) |
+| **verbose** | `-v` | streamed to stdout | logged at INFO | INFO level |
+| **json** | `-o json` | suppressed | suppressed | suppressed — raw JSON-RPC lines to stdout |
+
+- **default** — clean human-friendly output. Only the agent's response text is printed. Notifications (tool calls, plans, usage, etc.) and lifecycle events are logged at DEBUG level, invisible unless you also pass `--log-level DEBUG`.
+
+```shell
+$ acp run -p "Say Hello"
 Starting the AI conversation ...
-Hello
+Hello, world!
 ```
 
-With verbose mode (`-v`), notification details are logged at INFO level:
+- **verbose** (`-v`) — everything from default, plus detailed INFO-level logging of all notifications: tool calls with rawInput/rawOutput, plans with priority, permissions, session info, usage, and thoughts.
 
 ```shell
-$ acp -v --prompt "Say Hello"
+$ acp run -v -p "Say Hello using user's machine language"
 Starting the AI conversation ...
-11:11:58,435 INFO  [AcpCommand] Connected to the ACP agent: OpenCode - v1.15.4
-11:11:58,613 INFO  [AcpCommand] Session created: ses_1b631ae8bffegMSoAYKMCI6cUc
-11:11:58,619 INFO  [AcpCommand] [Commands] 3 available:
-11:11:58,622 INFO  [AcpCommand] [Config] model=opencode/big-pickle
-Hello
-11:12:00,661 INFO  [AcpCommand] [Usage] used=8081 size=200000 cost={amount=0, currency=USD}
+15:27:22,492 INFO  [RunCommand] [Usage] used=24378 size=200000 cost=null
+15:27:22,496 INFO  [RunCommand] [Thought] The user wants me to
+gr
+15:27:22,918 INFO  [RunCommand] [Thought] eet them in
+15:27:22,919 INFO  [RunCommand] [Thought]  their machine's language. Let
+15:27:22,920 INFO  [RunCommand] [Thought]  me check
+15:27:22,920 INFO  [RunCommand] [Thought]  their
+15:27:22,920 INFO  [RunCommand] [Thought]  environment
+15:27:22,921 INFO  [RunCommand] [Thought]  for
+15:27:22,921 INFO  [RunCommand] [Thought]  locale
+15:27:22,921 INFO  [RunCommand] [Thought] /
+15:27:23,382 INFO  [RunCommand] [Thought] language settings.
+15:27:23,401 INFO  [RunCommand] [ToolCall] id=toolu_vrtx_01CXUJqWYK52Xm3MbrWaxC1R title=Terminal kind=EXECUTE status=PENDING
+15:27:23,401 INFO  [RunCommand] [ToolCall]   rawInput: {}
+15:27:23,822 INFO  [RunCommand] [ToolUpdate] id=toolu_vrtx_01CXUJqWYK52Xm3MbrWaxC1R title=defaults read -g AppleLocale 2>/dev/null || echo "unknown" status=null
+15:27:23,823 INFO  [RunCommand] [ToolUpdate]   rawInput: {command=defaults read -g AppleLocale 2>/dev/null || echo "unknown"}
+15:27:23,866 INFO  [RunCommand] [ToolUpdate] id=toolu_vrtx_01CXUJqWYK52Xm3MbrWaxC1R title=defaults read -g AppleLocale 2>/dev/null || echo "unknown" status=null
+15:27:23,866 INFO  [RunCommand] [ToolUpdate]   rawInput: {command=defaults read -g AppleLocale 2>/dev/null || echo "unknown", description=Check macOS locale setting}
+15:27:23,866 INFO  [RunCommand] [ToolUpdate]   content: [{type=content, content={type=text, text=Check macOS locale setting}}]
+15:27:23,873 INFO  [RunCommand] [Usage] used=24496 size=200000 cost=null
+15:27:23,922 INFO  [RunCommand] [Permission] id=toolu_vrtx_01CXUJqWYK52Xm3MbrWaxC1R title=defaults read -g AppleLocale 2>/dev/null || echo "unknown" kind=EXECUTE
+15:27:23,923 INFO  [RunCommand] [Permission]   rawInput: {command=defaults read -g AppleLocale 2>/dev/null || echo "unknown", description=Check macOS locale setting}
+15:27:23,923 INFO  [RunCommand] [Permission]   option: Deny (reject_once) id=reject
+15:27:23,923 INFO  [RunCommand] [Permission]   option: Allow Once (allow_once) id=allow
+15:27:23,923 INFO  [RunCommand] [Permission]   option: Always Allow (allow_always) id=allow_always
+15:27:23,923 INFO  [RunCommand] [Permission]   selected: allow_always
+15:27:26,806 INFO  [RunCommand] [ToolUpdate] id=toolu_vrtx_01CXUJqWYK52Xm3MbrWaxC1R title=null status=null
+15:27:26,823 INFO  [RunCommand] [ToolUpdate] id=toolu_vrtx_01CXUJqWYK52Xm3MbrWaxC1R title=null status=COMPLETED
+15:27:26,823 INFO  [RunCommand] [ToolUpdate]   rawOutput: en_BE
+15:27:26,823 INFO  [RunCommand] [ToolUpdate]   content: [{type=content, content={type=text, text=```console
+en_BE
+```}}]
+15:27:28,242 INFO  [RunCommand] [Usage] used=24511 size=200000
+cost=null
+Your locale is `en_BE` (English - Belgium).
+
+Hello! 👋 How can I help you today?
+
+15:27:28,828 INFO  [RunCommand] [Usage] used=24540 size=200000 cost=null
+15:27:28,875 INFO  [RunCommand] [Usage] used=24540 size=200000 cost={amount=0.087753,
+currency=USD}
+15:27:28,879 INFO  [RunCommand] [SessionInfo] title=Say Hello using user's machine language updatedAt=2026-09-17T13:27:26.924Z
+15:27:28,892 INFO  [quarkus] acp-java-client stopped in 0.004s 
 ```
 
-With JSON output (`-o json`), raw JSON-RPC messages are printed to stdout (one per line) for machine parsing — all log output is suppressed:
+- **json** (`-o json`) — raw JSON-RPC protocol lines (both inbound and outbound) are printed to stdout, one per line. All log output is suppressed. Designed for machine consumption and debugging.
 
 ```shell
-$ acp -o json --prompt "Say Hello"
+$ acp run -o json -p "Say Hello"
 {"jsonrpc":"2.0","id":1,"method":"initialize","params":{...}}
 {"jsonrpc":"2.0","id":1,"result":{...}}
 ...
 ```
-
-### CLI options
-
-Man pages for all commands and subcommands are available in the [docs/](docs/) directory.
-
-Precedence: **CLI argument > environment variable > default value**.
-
-| Option                      | Env Variable                  | Description                                                                                                                                                            | Default                      |
-|-----------------------------|-------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------|
-| `-a`, `--agent`             | `ACP_AGENT`                   | ACP compatible agent id (see registry list)                                                                                                                            | `opencode`                   |
-| `-p`, `--prompt`            | `ACP_PROMPT`                  | The prompt text to send to the agent                                                                                                                                   | `Say Hello`                  |
-| `--provider`                | `ACP_PROVIDER`                | Provider: `zen`, `vertex-ai`                                                                                                                                           | `zen`                        |
-| `-m`, `--model`             | `ACP_MODEL`                   | The model to use, e.g. `claude-opus-4-6` (resolved per agent/provider)                                                                                                 |                              |
-| `--agent-binary`            | `ACP_AGENT_BINARY`            | Override agent binary path (for custom agents)                                                                                                                         |                              |
-| `--agent-args`              | `ACP_AGENT_ARGS`              | Override agent arguments (for custom agents)                                                                                                                           |                              |
-| `--request-timeout`         | `ACP_REQUEST_TIMEOUT`         | Timeout in seconds for steps: initialize, create session, etc.                                                                                                         | `30`                         |
-| `--prompt-request-timeout`  | `ACP_PROMPT_REQUEST_TIMEOUT`  | Timeout in seconds for prompt requests; 0 means no timeout                                                                                                             | `0`                          |
-| `--permission-mode`         | `ACP_PERMISSION_MODE`         | How to respond to agent permission requests (see below)                                                                                                                | `allow_always`               |
-| `-s`, `--skill-path`        | `SKILL_PATH`                  | Path or URL to a skills folder appended to the prompt                                                                                                                  |                              |
-| `-b`, `--backup`            | `ACP_BACKUP`                  | Backup workspace to `target/workdirs` before running: `yes`, `no`. Only applies to Maven/Gradle projects. When enabled, the session CWD is set to the backup directory | `yes`                        |
-| `--backup-project-name`     | `ACP_BACKUP_PROJECT_NAME`     | Name of the project used in the backup directory: `target/workdirs/<name>_<timestamp>`                                                                                 | `.` (current directory name) |
-| `--wks`, `--workspace-path` | `WORKSPACE_PATH`              | Absolute path to the project/workspace directory used as CWD for the session                                                                                           | current directory            |
-| `-o`, `--output`            | `ACP_OUTPUT`                  | Output mode: `default` (human-friendly), `json` (raw JSON-RPC messages)                                                                                                | `default`                    |
-| `-v`, `--verbose`           | `ACP_VERBOSE`                 | Enable verbose mode: logs all notifications at INFO level                                                                                                              | `false`                      |
-| `-l`, `--log-level`         | `ACP_LOG_LEVEL`               | Log level: `INFO`, `DEBUG`, `TRACE`, `WARNING`, `SEVERE`. Overrides `-v` when set                                                                                      |                              |
-| `-h`, `--help`              |                               | Show help message and exit                                                                                                                                             |                              |
-
-The `--agent` option resolves the binary and arguments automatically from a built-in registry. For custom or unsupported agents, use `--agent-binary` and `--agent-args` instead.
-
-When using `--agent opencode` with `--provider vertex-ai`, simple model names are resolved automatically:
-`--model claude-opus-4-6` becomes `google-vertex-anthropic/claude-opus-4-6@default`.
 
 ### CLI examples
 
 For more detailed command examples per agent and provider, see [COMMANDS_EXAMPLE.md](COMMANDS_EXAMPLE.md).
 
 ```shell
-# OpenCode with Zen (default agent + provider)
-acp --prompt "Say Hello"
+# Claude agent with default model
+acp run -p "Say Hello"
 
-# Claude Code with Vertex AI
-acp --agent claude-acp --provider vertex-ai --model claude-opus-4-6 \
-  --prompt "Say Hello"
+# Claude agent with Vertex AI provider
+acp run -a claude-acp --provider vertex-ai --model claude-opus-4-6 \
+  -p "Say Hello"
 
 # Using environment variables
 export ACP_AGENT=claude-acp
 export ACP_PROVIDER=vertex-ai
 export ACP_MODEL=claude-opus-4-6
-acp --prompt "Execute the java-project-discovery skill."
+acp run -p "Execute the java-project-discovery skill."
 
 # Gemini CLI
-acp --agent gemini --prompt "Say Hello"
+acp run -a gemini -p "Say Hello"
 
 # Custom agent binary
-acp --agent-binary my-agent --agent-args "serve" --prompt "Say Hello"
+acp run --agent-binary my-agent --agent-args "serve" -p "Say Hello"
 
 # With a skill path
-acp --agent claude-acp --skill-path /path/to/skills --prompt "Follow the skill instructions"
+acp run -a claude-acp --skill-path /path/to/skills -p "Follow the skill instructions"
 
 # With a skill URL (cloned automatically)
-acp --agent claude-acp --skill-path https://github.com/org/skills-repo --prompt "Follow the skill"
+acp run -a claude-acp --skill-path https://github.com/org/skills-repo -p "Follow the skill"
 ```
 
-## Agents and providers
-
-### ACP agents
-
-The following ACP-compatible agents can be used with this client. Install the agent you need and pass its binary and args via the `--agent-binary` and `--agent-args` CLI options.
-
-| Agent       | Binary (`--agent-binary`) | Args (`--agent-args`) | Installation                                                                                                                       |
-|-------------|---------------------------|-----------------------|------------------------------------------------------------------------------------------------------------------------------------|
-| OpenCode    | `opencode`                | `acp`                 | See [OpenCode ACP docs](https://opencode.ai/docs/acp/)                                                                            |
-| Claude Code | `claude-agent-acp`        |                       | `npm install -g @agentclientprotocol/claude-agent-acp` ([docs](https://www.npmjs.com/package/@agentclientprotocol/claude-agent-acp)) |
-| Pi          | `pi-acp`                  |                       | `npm install -g pi-acp` ([docs](https://github.com/svkozak/pi-acp))                                                               |
-| Gemini CLI  | `gemini`                  | `--acp`               | `npm install -g @google/gemini-cli` ([docs](https://geminicli.com/docs/cli/acp-mode/))                                             |
-
-### Providers
-
-Each agent can be configured with a model provider. The `--provider` option controls which environment variables are validated before connecting. The client will exit with an error if any required variable is missing.
-
-| Agent       | Provider (`--provider`) | Environment variables                                                                         | Documentation                                                                         |
-|-------------|-------------|-----------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|
-| OpenCode    | `zen` (default) | none                                                                                          | [OpenCode Zen](https://opencode.ai/docs/zen/)                                        |
-| OpenCode    | `vertex-ai` | `GOOGLE_APPLICATION_CREDENTIALS`, `VERTEX_LOCATION`, `GOOGLE_CLOUD_PROJECT`                   | [Google Vertex AI](https://opencode.ai/docs/providers/#google-vertex-ai)              |
-| Claude Code | `vertex-ai` | `ANTHROPIC_VERTEX_PROJECT_ID`, `ANTHROPIC_MODEL`, `CLAUDE_CODE_USE_VERTEX`, `CLOUD_ML_REGION` | [Anthropic Vertex AI](https://docs.anthropic.com/en/docs/build-with-claude/vertex-ai) |
-| Pi          | `vertex-ai` | `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CLOUD_PROJECT`, `CLOUD_ML_REGION`                   | [pi-vertex-claude](https://github.com/isaacraja/pi-vertex-claude)                    |
-| Gemini CLI  | `vertex-ai` | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`                                               | [Gemini CLI ACP mode](https://geminicli.com/docs/cli/acp-mode/)                      |
 
 ## Permissions
 
@@ -420,9 +487,9 @@ When an agent needs to perform a sensitive operation (e.g. writing a file, runni
 
 Example:
 ```shell
-java -jar client/target/acp-java-client-${VERSION}-runner.jar \
+java -jar client/target/acp-java-client-${VERSION}-runner.jar run \
   --permission-mode allow_once \
-  --prompt "Create a Java HelloWorld class"
+  -p "Create a Java HelloWorld class"
 ```
 
 ## Workspace path and backup
@@ -433,11 +500,11 @@ The `--workspace-path` option sets the project directory used as CWD for the age
 
 ```shell
 # Run the agent against a different project directory
-acp --agent claude-acp --workspace-path /path/to/my-project --prompt "Say hello"
+acp run -a claude-acp --workspace-path /path/to/my-project -p "Say hello"
 
 # Using an environment variable
 export WORKSPACE_PATH=/path/to/my-project
-acp --agent claude-acp --prompt "Say hello"
+acp run -a claude-acp -p "Say hello"
 ```
 
 ### Workspace backup
@@ -455,34 +522,20 @@ When running against a Maven or Gradle project, the client automatically backs u
 ```shell
 # Backup is enabled by default -- uses current directory name
 # CWD is set to the backup directory
-acp --agent claude-acp --prompt "Refactor the service layer"
+acp run -a claude-acp -p "Refactor the service layer"
 # -> CWD: target/workdirs/my-project_20260526-143022/
 
 # Specify a backup project name (useful when running against multiple projects)
-acp --agent claude-acp --backup-project-name my-service --prompt "Migrate to Jakarta"
+acp run -a claude-acp --backup-project-name my-service -p "Migrate to Jakarta"
 # -> CWD: target/workdirs/my-service_20260526-143022/
 
 # Combine workspace-path with backup
-acp --agent claude-acp --workspace-path /path/to/my-project --prompt "Refactor"
+acp run -a claude-acp --workspace-path /path/to/my-project -p "Refactor"
 # -> CWD: /path/to/my-project/target/workdirs/my-project_20260526-143022/
 
 # Disable backup -- CWD stays as workspace-path or current directory
-acp --agent claude-acp --backup no --prompt "Refactor the service layer"
+acp run -a claude-acp --backup no -p "Refactor the service layer"
 ```
-
-## Output modes
-
-The CLI supports three output modes that control what is printed to the console. The mode is selected via the `-o` / `--output` and `-v` / `--verbose` flags.
-
-| Mode | Flag | Agent messages | Notifications | Log output |
-|------|------|----------------|---------------|------------|
-| **default** | _(none)_ | streamed to stdout | silent (DEBUG level) | suppressed (WARNING) |
-| **verbose** | `-v` | streamed to stdout | logged at INFO | INFO level |
-| **json** | `-o json` | suppressed | suppressed | suppressed — raw JSON-RPC lines to stdout |
-
-- **default** — clean human-friendly output. Only the agent's response text is printed. Notifications (tool calls, plans, usage, etc.) and lifecycle events are logged at DEBUG level, invisible unless you also pass `--log-level DEBUG`.
-- **verbose** (`-v`) — everything from default, plus detailed INFO-level logging of all notifications: tool calls with rawInput/rawOutput, plans with priority, permissions, session info, usage, and thoughts.
-- **json** (`-o json`) — raw JSON-RPC protocol lines (both inbound and outbound) are printed to stdout, one per line. All log output is suppressed. Designed for machine consumption and debugging.
 
 ## Logging
 
@@ -490,16 +543,16 @@ The project uses Quarkus logging (backed by [JBoss Log Manager](https://github.c
 
 ```shell
 # Verbose mode — notifications at INFO level
-acp -v --prompt "Say Hello"
+acp run -v -p "Say Hello"
 
 # Explicit debug level — notifications + lifecycle details
-acp --log-level DEBUG --prompt "Say Hello"
+acp run --log-level DEBUG -p "Say Hello"
 
 # Trace level — raw JSON-RPC messages sent/received by the transport
-acp --log-level TRACE --prompt "Say Hello"
+acp run --log-level TRACE -p "Say Hello"
 
 # JSON output — raw protocol lines, no logs
-acp -o json --prompt "Say Hello"
+acp run -o json -p "Say Hello"
 ```
 
 Precedence: `-o json` wins (all logging suppressed), then `--log-level` (explicit level), then `-v` (INFO).
@@ -512,3 +565,22 @@ Precedence: `-o json` wins (all logging suppressed), then `--log-level` (explici
 | `INFO` (`-v`) | + tool calls, plans, commands, mode changes, usage, permissions, session info |
 | `DEBUG` | + agent thoughts, capabilities, session ID, workspace paths, lifecycle events |
 | `TRACE` | + raw JSON-RPC messages sent/received by the transport |
+
+
+## Agents and providers
+
+### ACP agents
+
+The list of the ACP-compatible agents is published part the [ACP registry](https://agentclientprotocol.com/get-started/registry).
+
+### Providers
+
+Each agent can be configured with a LLM provider. The `--provider` option controls which environment variables are validated before connecting. The client will exit with an error if any required variable is missing.
+
+| Agent       | Provider (`--provider`) | Environment variables                                                                         | Documentation                                                                         |
+|-------------|-------------|-----------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|
+| OpenCode    | `zen` (default) | none                                                                                          | [OpenCode Zen](https://opencode.ai/docs/zen/)                                        |
+| OpenCode    | `vertex-ai` | `GOOGLE_APPLICATION_CREDENTIALS`, `VERTEX_LOCATION`, `GOOGLE_CLOUD_PROJECT`                   | [Google Vertex AI](https://opencode.ai/docs/providers/#google-vertex-ai)              |
+| Claude Code | `vertex-ai` | `ANTHROPIC_VERTEX_PROJECT_ID`, `ANTHROPIC_MODEL`, `CLAUDE_CODE_USE_VERTEX`, `CLOUD_ML_REGION` | [Anthropic Vertex AI](https://docs.anthropic.com/en/docs/build-with-claude/vertex-ai) |
+| Pi          | `vertex-ai` | `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CLOUD_PROJECT`, `CLOUD_ML_REGION`                   | [pi-vertex-claude](https://github.com/isaacraja/pi-vertex-claude)                    |
+| Gemini CLI  | `vertex-ai` | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`                                               | [Gemini CLI ACP mode](https://geminicli.com/docs/cli/acp-mode/)                      |

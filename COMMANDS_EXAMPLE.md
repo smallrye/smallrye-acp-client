@@ -30,12 +30,12 @@ Reference commands for running the ACP Java Client with each supported agent and
 ### OpenCode + Zen (free model, no env vars needed)
 
 ```shell
-acp  \
+acp run \
   --prompt "Say Hello"
 ```
 
 ```shell
-acp \
+acp run \
   --prompt "Read the skills/dummy/SKILL.md instructions and say hello at the root of the project."
 ```
 
@@ -49,7 +49,7 @@ export GOOGLE_CLOUD_PROJECT=<your-gcp-project>
 
 You can specify the model 
 ```shell
-acp \
+acp run \
   --provider vertex-ai \
   --model claude-opus-4-6 \
   --prompt "Say Hello"
@@ -57,7 +57,7 @@ acp \
 
 or use the default `claude-opus-4-6`
 ```shell
-acp \
+acp run \
   --provider vertex-ai \
   --prompt "Execute the **java-project-discovery** skill. Inspect the workspace root directory, determine the build setup, target Java version, and framework configurations, and return the structured JSON output."
 ```
@@ -73,7 +73,7 @@ export CLOUD_ML_REGION=<google-location>
 ```
 
 ```shell
-acp \
+acp run \
   --agent claude-acp \
   --provider vertex-ai \
   --model claude-opus-4-6 \
@@ -81,14 +81,14 @@ acp \
 ```
 or use the default model: `claude-opus-4-6` using the provider `vertex-ai`
 ```shell
-acp \
+acp run \
   --agent claude-acp \
   --provider vertex-ai \
   --prompt "Read the skills/dummy/SKILL.md instructions and say hello at the root of the project."
 ```
 
 ```shell
-acp \
+acp run \
   --agent claude-acp \
   --provider vertex-ai \
   --prompt "Execute the **java-project-discovery** skill. Inspect the workspace root directory, determine the build setup, target Java version, and framework configurations, and return the structured JSON output."
@@ -99,13 +99,13 @@ acp \
 ### Gemini CLI (uses Google Cloud SDK authentication)
 
 ```shell
-acp \
+acp run \
   --agent gemini \
   --prompt "Say Hello"
 ```
 
 ```shell
-acp \
+acp run \
   --agent gemini \
   --prompt "Read the skills/dummy/SKILL.md instructions and say hello at the root of the project."
 ```
@@ -121,14 +121,14 @@ export CLOUD_ML_REGION=<google-location>
 ```
 
 ```shell
-acp \
+acp run \
   --agent pi \
   --provider vertex-ai \
   --prompt "Say Hello"
 ```
 
 ```shell
-acp \
+acp run \
   --agent pi \
   --provider vertex-ai \
   --prompt "Read the skills/dummy/SKILL.md instructions and say hello at the root of the project."
@@ -139,8 +139,8 @@ acp \
 The `--skill-path` option (or `SKILL_PATH` env var) specifies the path to a skill file. When set, the prompt is enhanced with an instruction telling the agent to read and follow the skill file.
 
 ```shell
-acp \
-  --agent claude \
+acp run \
+  --agent claude-acp \
   --provider vertex-ai \
   --skill-path /path/to/skills \
   --prompt "Execute the **java-project-discovery** skill."
@@ -149,8 +149,8 @@ acp \
 Using an environment variable:
 ```shell
 export SKILL_PATH=/path/to/skills
-acp \
-  --agent claude \
+acp run \
+  --agent claude-acp \
   --provider vertex-ai \
   --prompt "Execute the **java-project-discovery** skill."
 ```
@@ -160,8 +160,8 @@ acp \
 The `--workspace-path` option (or `WORKSPACE_PATH` env var) sets the project directory used as CWD for the agent session. If not specified, it defaults to the directory where the command is executed.
 
 ```shell
-acp \
-  --agent claude \
+acp run \
+  --agent claude-acp \
   --provider vertex-ai \
   --workspace-path /path/to/my-project \
   --prompt "Say Hello"
@@ -170,8 +170,8 @@ acp \
 Using an environment variable:
 ```shell
 export WORKSPACE_PATH=/path/to/my-project
-acp \
-  --agent claude \
+acp run \
+  --agent claude-acp \
   --provider vertex-ai \
   --prompt "Say Hello"
 ```
@@ -181,8 +181,8 @@ acp \
 The `--backup` option (`-b`) creates a copy of the workspace under `target/workdirs/` before the agent runs. The `--backup-project-name` option controls the directory name used in the backup. When backup succeeds, the session CWD is automatically set to the backup directory.
 
 ```shell
-acp \
-  --agent claude \
+acp run \
+  --agent claude-acp \
   --provider vertex-ai \
   --backup yes \
   --backup-project-name my-todo-app \
@@ -191,8 +191,8 @@ acp \
 
 Combining `--workspace-path` with backup:
 ```shell
-acp \
-  --agent claude \
+acp run \
+  --agent claude-acp \
   --provider vertex-ai \
   --workspace-path /path/to/my-project \
   --backup yes \
@@ -201,8 +201,8 @@ acp \
 
 To disable backup:
 ```shell
-acp \
-  --agent claude \
+acp run \
+  --agent claude-acp \
   --provider vertex-ai \
   --backup no \
   --prompt "Say Hello"
@@ -213,16 +213,16 @@ acp \
 The `--log-level` option (`-l`) controls log verbosity. Use `DEBUG` to see agent thoughts, tool calls, and usage details. Use `TRACE` to see raw JSON-RPC messages.
 
 ```shell
-acp \
-  --agent claude \
+acp run \
+  --agent claude-acp \
   --provider vertex-ai \
   -l DEBUG \
   --prompt "Review the pom.xml and propose improvements"
 ```
 
 ```shell
-acp \
-  --agent claude \
+acp run \
+  --agent claude-acp \
   --provider vertex-ai \
   -l TRACE \
   --prompt "Say Hello"

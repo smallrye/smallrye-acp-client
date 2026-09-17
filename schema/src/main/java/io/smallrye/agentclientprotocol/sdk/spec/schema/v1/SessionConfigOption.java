@@ -1,5 +1,6 @@
 package io.smallrye.agentclientprotocol.sdk.spec.schema.v1;
 
+import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -14,8 +15,9 @@ public record SessionConfigOption(
         @JsonProperty("description") String description,
         @JsonProperty("id") String id,
         @JsonProperty("name") String name,
+        @JsonProperty("options") List<SessionConfigSelectOption> options,
         @JsonProperty("type") String type) {
     public SessionConfigOption(String id, String name) {
-        this(null, null, null, null, id, name, null);
+        this(null, null, null, null, id, name, null, null);
     }
 }
