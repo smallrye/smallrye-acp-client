@@ -1,0 +1,22 @@
+= ACP-REGISTRY-INSTALL
+
+== NAME
+
+acp registry install -- Install an ACP agent from the registry
+
+== SYNOPSIS
+
+[source]
+----
+acp registry install [-f] <agentId>
+----
+
+== OPTIONS
+
+*-f*, *--force*::
+Force reinstall even if the agent is already installed
+
+== ARGUMENTS
+
+*<agentId>*::
+Agent identifier from the ACP registry (e.g. opencode, claude-acp, gemini)

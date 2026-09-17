@@ -1,0 +1,18 @@
+= ACP-MODEL-LIST
+
+== NAME
+
+acp model list -- Display the models available for an agent to interact with the LLM model
+
+== SYNOPSIS
+
+[source]
+----
+acp model list -a=<agent>
+----
+
+== OPTIONS
+
+*-a*, *--agent*=<agent>::
+Acp agent name to query to get the models. Use the commands: acp registry list to get the id/name !
+
