@@ -232,58 +232,6 @@ try (AcpSyncClient client = AcpClient.sync(transport)
 }
 ```
 
-### Running with `java -jar`
-
-Export the current version from the project's clone:
-```shell
-export VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-```
-Then execute one of the following commands:
-```shell
-# Default prompt: "Say Hello" with OpenCode agent
-java -jar client/target/acp-java-client-${VERSION}-runner.jar run
-
-# Custom prompt
-java -jar client/target/acp-java-client-${VERSION}-runner.jar run -p "What is 6+6?"
-
-# With a specific agent, provider, and model
-java -jar client/target/acp-java-client-${VERSION}-runner.jar run \
-  -a claude-acp \
-  --provider vertex-ai \
-  --model claude-opus-4-6 \
-  -p "Say hello"
-
-# List models available for an installed agent
-java -jar client/target/acp-java-client-${VERSION}-runner.jar model list -a opencode
-```
-
-### Running with JBang
-
-A [JBang catalog](https://www.jbang.dev/documentation/guide/latest/alias_catalogs.html) is provided at the project root. After building:
-
-```shell
-# Run from the project root using the local catalog and uber jar generated under client/target/
-jbang acp run -p "What is 6+6?"
-```
-
-To install the tool for use outside this project, use the Maven GAV with a released version:
-```shell
-jbang app install --name acp io.smallrye.ai:acp-java-client:0.1.0:runner
-
-cd /java/project/to/code/using/ai
-acp run -p "Say hello"
-```
-The command supports autocompletion:
-```shell
-source <(acp generate-completion)
-```
-
-### Running with Quarkus dev mode
-
-```shell
-mvn quarkus:dev -pl client -Dquarkus.args="run -p 'Say Hello'"
-```
-
 ## ACP CLI
 
 The `client` module provides a Quarkus client tool (`acp`) built using the modules: `core` and `registry` and [Aesh](https://github.com/aeshell/aesh) to design the 
