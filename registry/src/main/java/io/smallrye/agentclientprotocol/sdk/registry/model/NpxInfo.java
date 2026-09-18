@@ -9,6 +9,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record NpxInfo(
         @JsonProperty("package") String packageName,
+        @JsonProperty("binName") String binName,
         List<String> args,
         Map<String, String> env) {
 }
