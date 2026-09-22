@@ -118,7 +118,7 @@ public class StdioAcpClientTransport {
     }
 
     /**
-     * Creates a transport with a custom {@link ObjectMapper}.
+     * Creates transport with a custom {@link ObjectMapper}.
      *
      * @param params the agent process configuration
      * @param mapper the Jackson mapper for JSON serialization/deserialization
