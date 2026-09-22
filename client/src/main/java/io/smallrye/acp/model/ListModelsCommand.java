@@ -52,18 +52,12 @@ public class ListModelsCommand implements Command<CommandInvocation> {
         }
 
         // Configure the ACP command to be executed: binary path + args
-        var paramBuilder = AgentParameters.builder(acpAgentMetadata.cmd());
-        if (!acpAgentMetadata.args().isEmpty()) {
-            for (String a : acpAgentMetadata.args()) {
-                String trimmed = a.trim();
-                if (!trimmed.isEmpty()) {
-                    paramBuilder.arg(trimmed);
-                }
-            }
-        }
+        var params = AgentParameters.builder(acpAgentMetadata.cmd())
+                .args(acpAgentMetadata.args())
+                .build();
 
         // Create the Stdio Transport to send/receive JSON RPC messages
-        var transport = new StdioAcpClientTransport(paramBuilder.build());
+        var transport = new StdioAcpClientTransport(params);
 
         // Configure the ACP client to initialize a communication and got a session with the configuration options
         // which can include models

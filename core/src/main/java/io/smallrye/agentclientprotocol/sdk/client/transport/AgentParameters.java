@@ -2,6 +2,7 @@ package io.smallrye.agentclientprotocol.sdk.client.transport;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -101,6 +102,27 @@ public class AgentParameters {
          */
         public Builder arg(String arg) {
             this.args.add(arg);
+            return this;
+        }
+
+        /**
+         * Adds command-line arguments from a collection, trimming each entry
+         * and silently skipping null, empty, or blank values.
+         *
+         * @param args the arguments to append (may be {@code null} or empty)
+         * @return this builder
+         */
+        public Builder args(Collection<String> args) {
+            if (args != null) {
+                for (String a : args) {
+                    if (a != null) {
+                        String trimmed = a.trim();
+                        if (!trimmed.isEmpty()) {
+                            this.args.add(trimmed);
+                        }
+                    }
+                }
+            }
             return this;
         }
 

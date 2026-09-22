@@ -211,12 +211,7 @@ public class RunCommand implements Command<CommandInvocation> {
 
         var paramBuilder = AgentParameters.builder(binary);
         if (args != null && !args.isEmpty()) {
-            for (String a : args.split(",")) {
-                String trimmed = a.trim();
-                if (!trimmed.isEmpty()) {
-                    paramBuilder.arg(trimmed);
-                }
-            }
+            paramBuilder.args(List.of(args.split(",")));
         }
         var params = paramBuilder.build();
 
