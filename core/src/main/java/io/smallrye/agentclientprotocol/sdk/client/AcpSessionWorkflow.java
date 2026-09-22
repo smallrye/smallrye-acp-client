@@ -224,7 +224,11 @@ public class AcpSessionWorkflow {
             if (resumeSessionId != null) {
                 // Resume flow: list sessions → find match → load session
                 var listResponse = client.listSessions(new ListSessionsRequest());
-                var matchingSession = listResponse.sessions().stream()
+                var sessions = listResponse.sessions();
+                if (sessions == null || sessions.isEmpty()) {
+                    throw new IllegalStateException("No sessions available to resume");
+                }
+                var matchingSession = sessions.stream()
                         .filter(s -> resumeSessionId.equals(s.sessionId()))
                         .findFirst()
                         .orElseThrow(() -> new IllegalStateException(
