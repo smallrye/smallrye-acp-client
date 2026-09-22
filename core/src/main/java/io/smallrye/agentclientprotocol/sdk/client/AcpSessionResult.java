@@ -9,22 +9,33 @@ import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
  *
  * <p>
  * Provides access to all intermediate responses collected during the workflow:
- * initialization, session creation, optional model configuration, and the prompt response.
+ * initialization, session creation (or session loading for resumed sessions),
+ * optional model configuration, and the prompt response.
  *
  * <p>
- * Example:
+ * Example (new session):
  *
  * <pre>{@code
  * AcpSessionResult result = client.workflow()
- *         .initialize()
- *         .newSession("/workspace")
+ *         .withWorkspace("/workspace")
  *         .model("claude-opus-4-6")
  *         .prompt("Say hello")
- *         .execute();
+ *         .run();
  *
  * System.out.println("Agent: " + result.agentInfo().name());
  * System.out.println("Session: " + result.sessionId());
  * System.out.println("Stop reason: " + result.stopReason());
+ * }</pre>
+ *
+ * <p>
+ * Example (resumed session):
+ *
+ * <pre>{@code
+ * AcpSessionResult result = client.workflow()
+ *         .withWorkspace("/workspace")
+ *         .resumeSession("session-id-123")
+ *         .prompt("Continue where we left off")
+ *         .run();
  * }</pre>
  *
  * @see AcpSessionWorkflow
@@ -33,7 +44,20 @@ public record AcpSessionResult(
         InitializeResponse initializeResponse,
         NewSessionResponse newSessionResponse,
         SetSessionConfigOptionResponse configOptionResponse,
-        PromptResponse promptResponse) {
+        PromptResponse promptResponse,
+        LoadSessionResponse loadSessionResponse,
+        String resumedSessionId) {
+
+    /**
+     * Creates a result for a new session workflow (no resume).
+     */
+    public AcpSessionResult(
+            InitializeResponse initializeResponse,
+            NewSessionResponse newSessionResponse,
+            SetSessionConfigOptionResponse configOptionResponse,
+            PromptResponse promptResponse) {
+        this(initializeResponse, newSessionResponse, configOptionResponse, promptResponse, null, null);
+    }
 
     /**
      * Returns the agent implementation info from the initialization handshake.
@@ -43,20 +67,33 @@ public record AcpSessionResult(
     }
 
     /**
-     * Returns the session ID.
+     * Returns the session ID. For new sessions this comes from the session creation response;
+     * for resumed sessions it comes from the session ID provided by the caller.
      */
     public String sessionId() {
-        return newSessionResponse != null ? newSessionResponse.sessionId() : null;
+        if (newSessionResponse != null) {
+            return newSessionResponse.sessionId();
+        }
+        return resumedSessionId;
     }
 
     /**
-     * Returns the effective config options. If a model was set via the workflow,
-     * returns the updated options from the config response; otherwise returns
-     * the session's default options.
+     * Returns {@code true} if this result represents a resumed session.
+     */
+    public boolean isResumedSession() {
+        return loadSessionResponse != null;
+    }
+
+    /**
+     * Returns the effective config options. Checks (in order): explicit config option response,
+     * loaded session response, new session response.
      */
     public List<SessionConfigOption> configOptions() {
         if (configOptionResponse != null && configOptionResponse.configOptions() != null) {
             return configOptionResponse.configOptions();
+        }
+        if (loadSessionResponse != null && loadSessionResponse.configOptions() != null) {
+            return loadSessionResponse.configOptions();
         }
         return newSessionResponse != null ? newSessionResponse.configOptions() : null;
     }

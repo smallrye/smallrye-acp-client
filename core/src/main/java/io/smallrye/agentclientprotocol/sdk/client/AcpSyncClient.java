@@ -30,11 +30,10 @@ import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
  *
  *     // Fluent workflow API
  *     AcpSessionResult result = client.workflow()
- *             .initialize()
- *             .newSession("/workspace")
+ *             .withWorkspace("/workspace")
  *             .model("claude-opus-4-6")
  *             .prompt("Say hello")
- *             .execute();
+ *             .run();
  *
  *     System.out.println("Agent: " + result.agentInfo().name());
  *     System.out.println("Stop reason: " + result.stopReason());
@@ -144,6 +143,28 @@ public class AcpSyncClient implements AutoCloseable {
     }
 
     /**
+     * Lists existing sessions (blocking).
+     * Only works if the agent supports the {@code sessionCapabilities.list} capability.
+     *
+     * @param request optional filters (cwd, cursor for pagination)
+     * @return the list of sessions
+     */
+    public ListSessionsResponse listSessions(ListSessionsRequest request) {
+        return await(delegate.listSessions(request));
+    }
+
+    /**
+     * Loads an existing session for resumption (blocking).
+     * Only works if the agent supports the {@code loadSession} capability.
+     *
+     * @param request the session ID, working directory, and MCP servers
+     * @return the loaded session's config and modes
+     */
+    public LoadSessionResponse loadSession(LoadSessionRequest request) {
+        return await(delegate.loadSession(request));
+    }
+
+    /**
      * Sends a cancellation notification for the current prompt turn (blocking).
      *
      * @param notification the session ID to cancel
@@ -163,11 +184,10 @@ public class AcpSyncClient implements AutoCloseable {
      *
      * <pre>{@code
      * AcpSessionResult result = client.workflow()
-     *         .initialize()
-     *         .newSession("/workspace")
+     *         .withWorkspace("/workspace")
      *         .model("claude-opus-4-6")
      *         .prompt("Say hello")
-     *         .execute();
+     *         .run();
      * }</pre>
      *
      * @return a new {@link AcpSessionWorkflow}

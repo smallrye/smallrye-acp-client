@@ -191,6 +191,28 @@ public class AcpAsyncClient {
     }
 
     /**
+     * Lists existing sessions. Only available if the agent supports {@code sessionCapabilities.list}.
+     *
+     * @param request optional filters (cwd, cursor for pagination)
+     * @return a {@link CompletableFuture} emitting the list of sessions
+     */
+    public CompletableFuture<ListSessionsResponse> listSessions(ListSessionsRequest request) {
+        return sendRequest("session/list", request)
+                .thenApply(result -> mapper.convertValue(result, ListSessionsResponse.class));
+    }
+
+    /**
+     * Loads an existing session for resumption. Only available if the agent supports {@code loadSession}.
+     *
+     * @param request the session ID, working directory, and MCP servers
+     * @return a {@link CompletableFuture} emitting the loaded session's config and modes
+     */
+    public CompletableFuture<LoadSessionResponse> loadSession(LoadSessionRequest request) {
+        return sendRequest("session/load", request)
+                .thenApply(result -> mapper.convertValue(result, LoadSessionResponse.class));
+    }
+
+    /**
      * Sends a cancellation notification for the current prompt turn.
      *
      * @param notification the session ID to cancel
