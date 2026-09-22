@@ -112,6 +112,9 @@ public class RunCommand implements Command<CommandInvocation> {
     @Option(shortName = 'o', name = "output", description = "Output mode: default (human-friendly), json (raw JSON-RPC messages) [env: ACP_OUTPUT]")
     String output;
 
+    @Option(name = "resume-session-id", description = "Resume an existing session by its ID instead of creating a new one. Uses session/list + session/load [env: ACP_RESUME_SESSION_ID]")
+    String resumeSessionId;
+
     @Option(shortName = 'v', name = "verbose", description = "Enable to log JSON RPC messages [env: ACP_VERBOSE]", hasValue = false)
     boolean verbose;
 
@@ -229,19 +232,29 @@ public class RunCommand implements Command<CommandInvocation> {
 
         configureOutputMode(clientBuilder, transport, useJsonOutput, useVerbose);
 
+        resumeSessionId = ProjectUtil.resolveValueWithPrecedence(resumeSessionId, "ACP_RESUME_SESSION_ID", null);
+
         try (AcpSyncClient client = clientBuilder.build()) {
             if (!useJsonOutput) {
                 invocation.println("Starting the AI conversation ...");
             }
-            AcpSessionResult result = client.workflow()
-                    .initialize()
-                    .onInitialized(RunCommand::logInitialized)
-                    .newSession(cwd)
-                    .onSessionCreated(session -> logSessionCreated(session, cwd))
+
+            var workflow = client.workflow()
+                    .withWorkspace(cwd)
+                    .onInitialized(RunCommand::logInitialized);
+
+            if (resumeSessionId != null && !resumeSessionId.isEmpty()) {
+                workflow.resumeSession(resumeSessionId)
+                        .onSessionLoaded(loaded -> logSessionLoaded(resumeSessionId));
+            } else {
+                workflow.onSessionCreated(session -> logSessionCreated(session, cwd));
+            }
+
+            AcpSessionResult result = workflow
                     .model(model)
                     .skill(skillPath)
                     .prompt(prompt)
-                    .runSession();
+                    .run();
             flushOutput();
             logger.debugf("Done! Stop reason: %s", result.stopReason());
 
@@ -474,6 +487,10 @@ public class RunCommand implements Command<CommandInvocation> {
                     .findFirst()
                     .ifPresent(opt -> logger.debugf("Agent model: %s", opt.currentValue()));
         }
+    }
+
+    private static void logSessionLoaded(String sessionId) {
+        logger.debugf("Session resumed: %s", sessionId);
     }
 
     private void flushOutput() {

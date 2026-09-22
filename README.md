@@ -90,18 +90,17 @@ For advanced use cases requiring access to the raw notification (e.g. cross-cutt
 
 ### Session workflow
 
-The `AcpSessionWorkflow` provides a fluent API for the common session lifecycle: **initialize** the agent, **create a session**, optionally **set the model** and **skill**, then **send a prompt**. The session is automatically closed when the workflow completes.
+The `AcpSessionWorkflow` provides a fluent API for the common session lifecycle: **initialize** the agent, **create a session**, optionally **set the model** and **skill**, then **send a prompt**. Initialization and session creation are handled automatically. The session is automatically closed when the workflow completes.
 
 ```java
 AcpSessionResult result = client.workflow()
-        .initialize()
-        .newSession("/path/to/workspace")
+        .withWorkspace("/path/to/workspace")
         .mcpServer(new McpServerStdio(
                 List.of("--stdio"), "/path/to/mcp-server", List.of(), "filesystem"))
         .model("claude-opus-4-6")
         .skill("/path/to/skill")
         .prompt("Refactor the service layer")
-        .execute();
+        .run();
 ```
 
 The `mcpServer()` call is optional. It accepts any of the transport types defined by the ACP schema:
@@ -138,13 +137,13 @@ PromptResponse prompt = result.promptResponse();
 
 | Method | Required | Description |
 |--------|----------|-------------|
-| `initialize()` | yes | Performs the ACP handshake with the agent |
-| `newSession(String cwd)` | yes | Creates a session with the given workspace directory |
+| `withWorkspace(String cwd)` | no | Sets the workspace directory. Defaults to `System.getProperty("user.dir")` |
+| `resumeSession(String sessionId)` | no | Resumes an existing session instead of creating a new one |
 | `mcpServer(Object)` / `mcpServers(List)` | no | MCP servers the agent should connect to (`McpServerStdio` or `McpServerHttp`) |
 | `model(String)` | no | Sets the model (e.g. `"claude-opus-4-6"`). Silently skipped if the agent doesn't support config options |
 | `skill(String)` | no | Appends skill instructions to the prompt |
 | `prompt(String)` | yes | Sets the prompt text to send |
-| `execute()` | -- | Runs the workflow and returns `AcpSessionResult` |
+| `run()` | -- | Runs the workflow and returns `AcpSessionResult` |
 
 #### Lifecycle callbacks
 
@@ -152,12 +151,11 @@ For real-time logging or progress feedback between workflow steps, register call
 
 ```java
 AcpSessionResult result = client.workflow()
-        .initialize()
+        .withWorkspace(cwd)
         .onInitialized(init -> {
             logger.info("Connected to: " + init.agentInfo().name());
             logger.info("Protocol version: " + init.protocolVersion());
         })
-        .newSession(cwd)
         .onSessionCreated(session -> {
             logger.info("Session: " + session.sessionId());
         })
@@ -165,14 +163,33 @@ AcpSessionResult result = client.workflow()
         .skill("/path/to/skill")
         .prompt("Say hello")
         .beforePrompt(() -> System.out.println("Waiting for response..."))
-        .execute();
+        .run();
 ```
 
 | Callback | When it fires |
 |----------|---------------|
 | `onInitialized(Consumer<InitializeResponse>)` | After the handshake completes |
-| `onSessionCreated(Consumer<NewSessionResponse>)` | After the session is created |
+| `onSessionCreated(Consumer<NewSessionResponse>)` | After a new session is created |
+| `onSessionLoaded(Consumer<LoadSessionResponse>)` | After a resumed session is loaded |
 | `beforePrompt(Runnable)` | Right before the prompt is sent |
+
+#### Resuming a session
+
+To resume an existing session, call `resumeSession(sessionId)`. The workflow will call `session/list` to verify the session exists, then `session/load` to restore it:
+
+```java
+AcpSessionResult result = client.workflow()
+        .withWorkspace("/path/to/workspace")
+        .resumeSession("session-id-to-resume")
+        .onSessionLoaded(loaded -> logger.info("Session resumed"))
+        .prompt("Continue where we left off")
+        .run();
+
+// Check if the session was resumed
+if (result.isResumedSession()) {
+    logger.info("Resumed session successfully");
+}
+```
 
 ### Using the raw client API
 

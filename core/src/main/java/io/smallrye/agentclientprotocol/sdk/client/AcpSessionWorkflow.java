@@ -9,31 +9,41 @@ import org.jboss.logging.Logger;
 import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
 
 /**
- * Fluent workflow for the common ACP session lifecycle: initialize, create session, configure model, send prompt, close
- * session.
+ * Fluent workflow for the common ACP session lifecycle: initialize, create or resume a session, configure model, send prompt,
+ * close session.
  *
  * <p>
- * Captures all configuration via chained method calls, then executes the full workflow when {@link #runSession()} is called.
- * Returns an {@link AcpSessionResult} containing all intermediate responses.
+ * Captures all configuration via chained method calls, then executes the full workflow when {@link #run()} is called.
+ * Initialization and session creation are handled automatically — use {@link #resumeSession(String)} to resume an existing
+ * session instead.
  *
  * <p>
- * Optional lifecycle callbacks ({@link #onInitialized}, {@link #onSessionCreated}, {@link #beforePrompt}) allow real-time
- * logging or UI updates between steps.
+ * Optional lifecycle callbacks ({@link #onInitialized}, {@link #onSessionCreated}, {@link #onSessionLoaded},
+ * {@link #beforePrompt}) allow real-time logging or UI updates between steps.
  *
  * <p>
- * Example:
+ * New session example:
  *
  * <pre>{@code
  * AcpSessionResult result = client.workflow()
- *         .initialize()
+ *         .withWorkspace("/workspace")
  *         .onInitialized(init -> System.out.println("Agent: " + init.agentInfo().name()))
- *         .newSession("/workspace")
  *         .onSessionCreated(session -> System.out.println("Session: " + session.sessionId()))
  *         .model("claude-opus-4-6")
- *         .skill("/path/to/skill")
  *         .prompt("Say hello")
- *         .beforePrompt(() -> System.out.println("Waiting for response..."))
- *         .execute();
+ *         .run();
+ * }</pre>
+ *
+ * <p>
+ * Resume session example:
+ *
+ * <pre>{@code
+ * AcpSessionResult result = client.workflow()
+ *         .withWorkspace("/workspace")
+ *         .resumeSession("session-id-123")
+ *         .onSessionLoaded(loaded -> System.out.println("Session resumed"))
+ *         .prompt("Continue where we left off")
+ *         .run();
  * }</pre>
  *
  * @see AcpSyncClient#workflow()
@@ -44,8 +54,8 @@ public class AcpSessionWorkflow {
     private static final Logger logger = Logger.getLogger(AcpSessionWorkflow.class);
 
     private final AcpSyncClient client;
-    private boolean doInitialize;
     private String cwd;
+    private String resumeSessionId;
     private final List<Object> mcpServers = new ArrayList<>();
     private String model;
     private String skillPath;
@@ -53,6 +63,7 @@ public class AcpSessionWorkflow {
 
     private Consumer<InitializeResponse> onInitialized;
     private Consumer<NewSessionResponse> onSessionCreated;
+    private Consumer<LoadSessionResponse> onSessionLoaded;
     private Runnable beforePrompt;
 
     AcpSessionWorkflow(AcpSyncClient client) {
@@ -60,10 +71,12 @@ public class AcpSessionWorkflow {
     }
 
     /**
-     * Marks that the ACP initialization handshake should be performed.
+     * Sets the workspace directory for the session. If not called, defaults to {@code System.getProperty("user.dir")}.
+     *
+     * @param cwd the workspace directory path
      */
-    public AcpSessionWorkflow initialize() {
-        this.doInitialize = true;
+    public AcpSessionWorkflow withWorkspace(String cwd) {
+        this.cwd = cwd;
         return this;
     }
 
@@ -78,22 +91,40 @@ public class AcpSessionWorkflow {
     }
 
     /**
-     * Configures the session working directory.
-     *
-     * @param cwd the workspace directory for the session
-     */
-    public AcpSessionWorkflow newSession(String cwd) {
-        this.cwd = cwd;
-        return this;
-    }
-
-    /**
-     * Registers a callback invoked right after the session is created.
+     * Registers a callback invoked right after a new session is created.
      *
      * @param callback receives the {@link NewSessionResponse}
      */
     public AcpSessionWorkflow onSessionCreated(Consumer<NewSessionResponse> callback) {
         this.onSessionCreated = callback;
+        return this;
+    }
+
+    /**
+     * Configures the workflow to resume an existing session instead of creating a new one.
+     *
+     * <p>
+     * During {@link #run()}, the workflow will:
+     * <ol>
+     * <li>Call {@code session/list} to discover existing sessions</li>
+     * <li>Verify the given session ID exists in the list</li>
+     * <li>Call {@code session/load} to restore the session</li>
+     * </ol>
+     *
+     * @param sessionId the ID of the session to resume
+     */
+    public AcpSessionWorkflow resumeSession(String sessionId) {
+        this.resumeSessionId = sessionId;
+        return this;
+    }
+
+    /**
+     * Registers a callback invoked right after a resumed session is loaded.
+     *
+     * @param callback receives the {@link LoadSessionResponse}
+     */
+    public AcpSessionWorkflow onSessionLoaded(Consumer<LoadSessionResponse> callback) {
+        this.onSessionLoaded = callback;
         return this;
     }
 
@@ -160,28 +191,24 @@ public class AcpSessionWorkflow {
     }
 
     /**
-     * Executes the workflow: initialize, create session, set model, send prompt, close session.
+     * Executes the workflow: initialize, create or resume session, set model, send prompt, close session.
+     *
+     * <p>
+     * If {@link #resumeSession(String)} was called, the session is loaded from the agent's session list
+     * instead of creating a new one. Otherwise a new session is created.
      *
      * <p>
      * The session is always closed when the workflow completes, even if an exception occurs during the prompt.
      *
      * @return an {@link AcpSessionResult} containing all intermediate responses
-     * @throws IllegalStateException if {@link #newSession(String)} or {@link #prompt(String)} was not called
+     * @throws IllegalStateException if {@link #prompt(String)} was not called
      */
-    public AcpSessionResult runSession() {
-        if (!doInitialize) {
-            throw new IllegalStateException("initialize must be called before newSession(cwd)");
-        }
-
-        if (cwd == null) {
-            throw new IllegalStateException(
-                    "newSession(cwd) must be called after initialize and before prompt() and runSession()");
-        }
-
+    public AcpSessionResult run() {
         if (promptText == null) {
-            throw new IllegalStateException("prompt(text) must be called before runSession()");
+            throw new IllegalStateException("prompt(text) must be called before run()");
         }
 
+        String effectiveCwd = cwd != null ? cwd : System.getProperty("user.dir");
         String sessionId = "";
 
         try {
@@ -191,13 +218,39 @@ public class AcpSessionWorkflow {
                 onInitialized.accept(initResponse);
             }
 
-            // 2. Create session
-            var sessionResponse = client
-                    .newSession(new NewSessionRequest(cwd, List.copyOf(mcpServers)));
-            sessionId = sessionResponse.sessionId();
-            if (onSessionCreated != null) {
-                onSessionCreated.accept(sessionResponse);
+            NewSessionResponse sessionResponse = null;
+            LoadSessionResponse loadResponse = null;
+
+            if (resumeSessionId != null) {
+                // Resume flow: list sessions → find match → load session
+                var listResponse = client.listSessions(new ListSessionsRequest());
+                var matchingSession = listResponse.sessions().stream()
+                        .filter(s -> resumeSessionId.equals(s.sessionId()))
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalStateException(
+                                "Session '" + resumeSessionId + "' not found in agent's session list"));
+
+                logger.debugf("Found session to resume: %s (cwd=%s, title=%s, updatedAt=%s)",
+                        matchingSession.sessionId(), matchingSession.cwd(),
+                        matchingSession.title(), matchingSession.updatedAt());
+
+                String loadCwd = matchingSession.cwd() != null ? matchingSession.cwd() : effectiveCwd;
+                loadResponse = client.loadSession(
+                        new LoadSessionRequest(loadCwd, List.copyOf(mcpServers), resumeSessionId));
+                sessionId = resumeSessionId;
+
+                if (onSessionLoaded != null) {
+                    onSessionLoaded.accept(loadResponse);
+                }
+            } else {
+                // New session flow
+                sessionResponse = client.newSession(new NewSessionRequest(effectiveCwd, List.copyOf(mcpServers)));
+                sessionId = sessionResponse.sessionId();
+                if (onSessionCreated != null) {
+                    onSessionCreated.accept(sessionResponse);
+                }
             }
+
             // 3. Set model (optional)
             SetSessionConfigOptionResponse configResponse = null;
             if (model != null && !model.isEmpty()) {
@@ -227,7 +280,7 @@ public class AcpSessionWorkflow {
             var promptResponse = client.prompt(new PromptRequest(
                     List.of(new TextContent(effectivePrompt)), sessionId));
 
-            return new AcpSessionResult(initResponse, sessionResponse, configResponse, promptResponse);
+            return new AcpSessionResult(initResponse, sessionResponse, configResponse, promptResponse, loadResponse);
         } catch (Exception e) {
             logger.errorf("Failed to run the session: %s", e.getMessage());
             throw new RuntimeException(e);

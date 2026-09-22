@@ -13,4 +13,11 @@ public record ListSessionsRequest(
         @JsonProperty("_meta") Map<String, Object> meta,
         @JsonProperty("cursor") String cursor,
         @JsonProperty("cwd") String cwd) {
+    public ListSessionsRequest() {
+        this(null, null, null);
+    }
+
+    public ListSessionsRequest(String cwd) {
+        this(null, null, cwd);
+    }
 }
