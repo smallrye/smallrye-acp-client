@@ -284,7 +284,8 @@ public class AcpSessionWorkflow {
             var promptResponse = client.prompt(new PromptRequest(
                     List.of(new TextContent(effectivePrompt)), sessionId));
 
-            return new AcpSessionResult(initResponse, sessionResponse, configResponse, promptResponse, loadResponse);
+            return new AcpSessionResult(initResponse, sessionResponse, configResponse, promptResponse, loadResponse,
+                    resumeSessionId);
         } catch (Exception e) {
             logger.errorf("Failed to run the session: %s", e.getMessage());
             throw new RuntimeException(e);

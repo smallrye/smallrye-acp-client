@@ -45,7 +45,8 @@ public record AcpSessionResult(
         NewSessionResponse newSessionResponse,
         SetSessionConfigOptionResponse configOptionResponse,
         PromptResponse promptResponse,
-        LoadSessionResponse loadSessionResponse) {
+        LoadSessionResponse loadSessionResponse,
+        String resumedSessionId) {
 
     /**
      * Creates a result for a new session workflow (no resume).
@@ -55,7 +56,7 @@ public record AcpSessionResult(
             NewSessionResponse newSessionResponse,
             SetSessionConfigOptionResponse configOptionResponse,
             PromptResponse promptResponse) {
-        this(initializeResponse, newSessionResponse, configOptionResponse, promptResponse, null);
+        this(initializeResponse, newSessionResponse, configOptionResponse, promptResponse, null, null);
     }
 
     /**
@@ -67,10 +68,13 @@ public record AcpSessionResult(
 
     /**
      * Returns the session ID. For new sessions this comes from the session creation response;
-     * for resumed sessions it is not available here (the caller already knows it).
+     * for resumed sessions it comes from the session ID provided by the caller.
      */
     public String sessionId() {
-        return newSessionResponse != null ? newSessionResponse.sessionId() : null;
+        if (newSessionResponse != null) {
+            return newSessionResponse.sessionId();
+        }
+        return resumedSessionId;
     }
 
     /**
