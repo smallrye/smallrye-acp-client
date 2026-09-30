@@ -58,8 +58,21 @@ public interface AcpTransport {
      */
     ObjectMapper getMapper();
 
+    ObjectMapper DEFAULT_MAPPER = initDefaultMapper();
+
+    private static ObjectMapper initDefaultMapper() {
+        ObjectMapper mapper = new ObjectMapper()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL);
+
+        SimpleModule module = new SimpleModule("AcpContentTypes");
+        module.addSerializer(TextContent.class, new TextContentSerializer());
+        mapper.registerModule(module);
+        return mapper;
+    }
+
     /**
-     * Creates the default {@link ObjectMapper} with ACP-specific configuration:
+     * Returns the shared default {@link ObjectMapper} with ACP-specific configuration:
      * <ul>
      * <li>{@code FAIL_ON_UNKNOWN_PROPERTIES = false} for forward compatibility</li>
      * <li>{@code NON_NULL} serialization to avoid sending null fields</li>
@@ -67,16 +80,9 @@ public interface AcpTransport {
      * {@code "type": "text"} discriminator</li>
      * </ul>
      *
-     * @return a new configured mapper
+     * @return the shared configured mapper
      */
     static ObjectMapper createDefaultMapper() {
-        ObjectMapper mapper = new ObjectMapper()
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-                .setSerializationInclusion(JsonInclude.Include.NON_NULL);
-
-        SimpleModule module = new SimpleModule("AcpContentTypes");
-        module.addSerializer(TextContent.class, new TextContentSerializer());
-        mapper.registerModule(module);
-        return mapper;
+        return DEFAULT_MAPPER;
     }
 }
