@@ -18,7 +18,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import io.smallrye.agentclientprotocol.sdk.client.transport.StdioAcpClientTransport;
+import io.smallrye.agentclientprotocol.sdk.client.transport.AcpTransport;
 import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
 import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.Error;
 
@@ -26,7 +26,7 @@ import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.Error;
  * Asynchronous ACP client.
  *
  * <p>
- * Communicates with an ACP agent over a {@link StdioAcpClientTransport} using
+ * Communicates with an ACP agent over a {@link AcpTransport} using
  * JSON-RPC 2.0 over stdio. All protocol methods return {@link CompletableFuture}
  * for non-blocking composition.
  *
@@ -62,7 +62,7 @@ public class AcpAsyncClient {
             Map.entry("session_info_update", SessionInfoUpdate.class),
             Map.entry("usage_update", UsageUpdate.class));
 
-    private final StdioAcpClientTransport transport;
+    private final AcpTransport transport;
     private final ObjectMapper mapper;
     private final Duration requestTimeout;
     private final Duration promptRequestTimeout;
@@ -78,7 +78,7 @@ public class AcpAsyncClient {
         return t;
     });
 
-    AcpAsyncClient(StdioAcpClientTransport transport, Duration requestTimeout,
+    AcpAsyncClient(AcpTransport transport, Duration requestTimeout,
             Duration promptRequestTimeout, Consumer<SessionNotification> sessionUpdateConsumer,
             BiConsumer<RequestPermissionRequest, String> permissionObserver,
             String permissionMode) {

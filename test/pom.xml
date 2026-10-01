@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.smallrye.ai</groupId>
+        <artifactId>acp-java-parent</artifactId>
+        <version>0.2.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>acp-java-test</artifactId>
+    <description>Test fixtures for ACP Java SDK: ScriptedAcpAgent and AcpAgentProcess</description>
+    <name>Smallrye AI :: Agent Client Protocol :: test</name>
+
+    <dependencies>
+        <!-- Core module (AcpTransport, AcpClient, AcpAsyncClient) -->
+        <dependency>
+            <groupId>io.smallrye.ai</groupId>
+            <artifactId>acp-java-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Schema module (InitializeResponse, etc.) -->
+        <dependency>
+            <groupId>io.smallrye.ai</groupId>
+            <artifactId>acp-java-schema</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- JUnit 5 API (compile scope - this IS a test library) -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+        </dependency>
+
+        <!-- Jackson JSON processing -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.jboss.logging</groupId>
+            <artifactId>jboss-logging</artifactId>
+        </dependency>
+
+        <!-- Test scope: JUnit engine for self-tests -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
