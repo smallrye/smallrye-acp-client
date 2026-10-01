@@ -19,6 +19,7 @@ import io.smallrye.agentclientprotocol.sdk.client.AcpAsyncClient;
 import io.smallrye.agentclientprotocol.sdk.client.AcpClient;
 import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.CloseSessionRequest;
 import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.CloseSessionResponse;
+import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.ContentChunk;
 import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.Implementation;
 import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.InitializeResponse;
 import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.NewSessionRequest;
@@ -112,11 +113,8 @@ class MockAcpAgentTest {
             client.initialize().join();
             client.newSession(new NewSessionRequest("/tmp", List.of())).join();
 
-            agent.sendNotification("session/update", Map.of(
-                    "sessionId", "s1",
-                    "update", Map.of(
-                            "sessionUpdate", "agent_message_chunk",
-                            "content", Map.of("type", "text", "text", "Hello from agent"))));
+            agent.sessionUpdate("s1", "agent_message_chunk",
+                    new ContentChunk(Map.of("type", "text", "text", "Hello from agent")));
 
             SessionNotification notification = received.get(2, TimeUnit.SECONDS);
             assertNotNull(notification);
@@ -149,10 +147,14 @@ class MockAcpAgentTest {
                     "s1",
                     new ToolCallUpdate("tc-1"));
 
-            agent.sendRequest(100, "session/request_permission", permissionRequest);
+            JsonNode reply = agent.requestPermission(permissionRequest).get(2, TimeUnit.SECONDS);
 
             String selectedOption = permissionGranted.get(2, TimeUnit.SECONDS);
             assertEquals("opt-allow", selectedOption);
+
+            assertNotNull(reply);
+            assertNotNull(reply.get("outcome"));
+            assertEquals("opt-allow", reply.get("outcome").get("optionId").asText());
         }
     }
 

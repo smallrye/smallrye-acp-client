@@ -8,10 +8,12 @@ import java.io.PipedOutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import org.jboss.logging.Logger;
@@ -21,6 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import io.smallrye.agentclientprotocol.sdk.client.transport.AcpTransport;
+import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.RequestPermissionRequest;
 
 /**
  * A scripted ACP agent peer for test.
@@ -62,6 +65,8 @@ public class MockAcpAgent implements AutoCloseable {
 
     private final ConcurrentHashMap<String, Function<JsonNode, Object>> handlers = new ConcurrentHashMap<>();
     private final CopyOnWriteArrayList<JsonNode> capturedRequests = new CopyOnWriteArrayList<>();
+    private final ConcurrentHashMap<Integer, CompletableFuture<JsonNode>> pendingAgentRequests = new ConcurrentHashMap<>();
+    private final AtomicInteger agentRequestIdCounter = new AtomicInteger(1000);
     private final ExecutorService agentReaderExecutor;
     private volatile boolean closed = false;
 
@@ -144,6 +149,42 @@ public class MockAcpAgent implements AutoCloseable {
     }
 
     /**
+     * Sends a {@code session/update} notification with the {@code sessionUpdate} discriminator
+     * injected into the update JSON. This is the preferred way to push session updates
+     * from the mock agent.
+     *
+     * @param sessionId the session ID
+     * @param updateType the discriminator value (e.g. {@code "agent_message_chunk"}, {@code "tool_call"})
+     * @param record the update record (e.g. a {@link io.smallrye.agentclientprotocol.sdk.spec.schema.v1.ContentChunk})
+     */
+    public void sessionUpdate(String sessionId, String updateType, Object record) {
+        ObjectNode update = mapper.valueToTree(record);
+        update.put("sessionUpdate", updateType);
+
+        ObjectNode params = mapper.createObjectNode();
+        params.put("sessionId", sessionId);
+        params.set("update", update);
+
+        sendNotification("session/update", params);
+    }
+
+    /**
+     * Sends a {@code session/request_permission} request and returns a future
+     * that completes with the client's JSON-RPC response. The JSON-RPC id is
+     * managed internally.
+     *
+     * @param request the permission request
+     * @return a future completing with the client's response {@code result} node
+     */
+    public CompletableFuture<JsonNode> requestPermission(RequestPermissionRequest request) {
+        int id = agentRequestIdCounter.incrementAndGet();
+        CompletableFuture<JsonNode> future = new CompletableFuture<>();
+        pendingAgentRequests.put(id, future);
+        sendRequest(id, "session/request_permission", request);
+        return future;
+    }
+
+    /**
      * Sends a JSON-RPC notification from the agent to the client.
      *
      * @param method the notification method (e.g. {@code "session/update"})
@@ -205,15 +246,33 @@ public class MockAcpAgent implements AutoCloseable {
                     JsonNode request = mapper.readTree(line);
                     capturedRequests.add(request);
 
-                    if (request.has("id") && request.has("method")) {
+                    if (request.has("id") && !request.has("method")
+                            && (request.has("result") || request.has("error"))) {
+                        int respId = request.get("id").asInt();
+                        CompletableFuture<JsonNode> pending = pendingAgentRequests.remove(respId);
+                        if (pending != null) {
+                            if (request.has("error") && !request.get("error").isNull()) {
+                                pending.completeExceptionally(new RuntimeException(
+                                        "JSON-RPC error: " + request.get("error")));
+                            } else {
+                                pending.complete(request.get("result"));
+                            }
+                        }
+                    } else if (request.has("id") && request.has("method")) {
                         String method = request.get("method").asText();
                         JsonNode id = request.get("id");
                         JsonNode params = request.get("params");
 
                         Function<JsonNode, Object> handler = handlers.get(method);
                         if (handler != null) {
-                            Object result = handler.apply(params);
-                            writeResponse(id, result);
+                            try {
+                                Object result = handler.apply(params);
+                                writeResponse(id, result);
+                            } catch (Exception handlerEx) {
+                                logger.errorf(handlerEx, "Handler for '%s' threw an exception", method);
+                                writeErrorResponse(id, -32603,
+                                        "Handler error: " + handlerEx.getMessage());
+                            }
                         } else {
                             writeErrorResponse(id, -32601, "No handler registered for: " + method);
                         }

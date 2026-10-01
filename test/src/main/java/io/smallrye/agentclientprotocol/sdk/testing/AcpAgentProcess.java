@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.extension.AfterAllCallback;
+import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
@@ -39,7 +40,7 @@ import io.smallrye.agentclientprotocol.sdk.client.transport.StdioAcpClientTransp
  * }
  * </pre>
  */
-public class AcpAgentProcess implements BeforeAllCallback, AfterAllCallback {
+public class AcpAgentProcess implements BeforeAllCallback, AfterEachCallback, AfterAllCallback {
 
     private final String[] command;
     private Duration requestTimeout = Duration.ofSeconds(30);
@@ -101,6 +102,10 @@ public class AcpAgentProcess implements BeforeAllCallback, AfterAllCallback {
 
     @Override
     public void beforeAll(ExtensionContext context) {
+        buildTransportAndClient();
+    }
+
+    private void buildTransportAndClient() {
         var builder = AgentParameters.builder(command[0]);
         for (int i = 1; i < command.length; i++) {
             builder.arg(command[i]);
@@ -112,7 +117,17 @@ public class AcpAgentProcess implements BeforeAllCallback, AfterAllCallback {
     }
 
     @Override
+    public void afterEach(ExtensionContext context) {
+        shutdownTransport();
+        buildTransportAndClient();
+    }
+
+    @Override
     public void afterAll(ExtensionContext context) {
+        shutdownTransport();
+    }
+
+    private void shutdownTransport() {
         if (client != null) {
             try {
                 client.closeGracefully().get(10, TimeUnit.SECONDS);
