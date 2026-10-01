@@ -9,6 +9,8 @@ import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
+import org.jboss.logging.Logger;
+
 import io.smallrye.agentclientprotocol.sdk.client.AcpAsyncClient;
 import io.smallrye.agentclientprotocol.sdk.client.AcpClient;
 import io.smallrye.agentclientprotocol.sdk.client.transport.AgentParameters;
@@ -41,6 +43,8 @@ import io.smallrye.agentclientprotocol.sdk.client.transport.StdioAcpClientTransp
  * </pre>
  */
 public class AcpAgentProcess implements BeforeAllCallback, AfterEachCallback, AfterAllCallback {
+
+    private static final Logger logger = Logger.getLogger(AcpAgentProcess.class);
 
     private final String[] command;
     private Duration requestTimeout = Duration.ofSeconds(30);
@@ -128,13 +132,15 @@ public class AcpAgentProcess implements BeforeAllCallback, AfterEachCallback, Af
     }
 
     private void shutdownTransport() {
-        if (client != null) {
-            try {
+        try {
+            if (client != null) {
                 client.closeGracefully().get(10, TimeUnit.SECONDS);
-            } catch (Exception e) {
-                if (transport != null) {
-                    transport.closeGracefully();
-                }
+            }
+        } catch (Exception e) {
+            logger.warnf(e, "Client shutdown failed for agent '%s'", command[0]);
+        } finally {
+            if (transport != null) {
+                transport.closeGracefully();
             }
         }
     }
