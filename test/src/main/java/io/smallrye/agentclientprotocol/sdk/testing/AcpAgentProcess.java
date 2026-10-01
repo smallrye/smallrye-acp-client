@@ -1,4 +1,4 @@
-package io.smallrye.agentclientprotocol.sdk.testing;
+package io.smallrye.agentclientprotocol.sdk.test;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;

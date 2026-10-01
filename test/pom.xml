@@ -8,9 +8,9 @@
         <version>0.2.1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>acp-java-testing</artifactId>
+    <artifactId>acp-java-test</artifactId>
     <description>Test fixtures for ACP Java SDK: ScriptedAcpAgent and AcpAgentProcess</description>
-    <name>Smallrye AI :: Agent Client Protocol :: Testing</name>
+    <name>Smallrye AI :: Agent Client Protocol :: test</name>
 
     <dependencies>
         <!-- Core module (AcpTransport, AcpClient, AcpAsyncClient) -->

@@ -13,9 +13,9 @@ The project implements the [ACP Schema Specification v1](https://agentclientprot
 | `schema`   | `acp-schema`     | ACP JSON Schema (`v1`), generated Java records/enums, and `JSonSchemaGenerator` code generator                   |
 | `registry` | `acp-registry`   | Agent registry: discovery, installation (binary/npx/uvx) and resolution of ACP agents                           |
 | `core`     | `acp-core`       | ACP client library: fluent builder, session workflow, notification router, stdio transport                       |
-| `testing`  | `acp-java-testing` | Test fixtures: `MockAcpAgent` (pipe-based mock) and `AcpAgentProcess` (real-agent JUnit 5 extension)          |
+| `test`  | `acp-java-test` | Test fixtures: `MockAcpAgent` (pipe-based mock) and `AcpAgentProcess` (real-agent JUnit 5 extension)          |
 | `client`   | `acp-client`     | Aesh CLI (`AcpCommands`): `run`, `reg`, `model` subcommands. Depends on `core` and `registry`. Built as Quarkus uber-jar |
-| `integration-testing` | — (JBang scripts) | JBang-based integration tests against real ACP agents using the registry                         |
+| `integration-test` | — (JBang scripts) | JBang-based integration tests against real ACP agents using the registry                         |
 
 ## Prerequisites
 
@@ -251,18 +251,18 @@ try (AcpSyncClient client = AcpClient.sync(transport)
 }
 ```
 
-## Testing
+## test
 
-The `testing` module (`acp-java-testing`) provides plain JUnit 5 test fixtures for the ACP protocol. No agent binary is even required.
+The `test` module (`acp-java-test`) provides plain JUnit 5 test fixtures for the ACP protocol. No agent binary is even required.
 
 ### Dependency
 
-Add the testing module to your project with `test` scope:
+Add the test module to your project with `test` scope:
 
 ```xml
 <dependency>
     <groupId>io.smallrye.ai</groupId>
-    <artifactId>acp-java-testing</artifactId>
+    <artifactId>acp-java-test</artifactId>
     <version>${acp.version}</version>
     <scope>test</scope>
 </dependency>
@@ -270,7 +270,7 @@ Add the testing module to your project with `test` scope:
 
 ### AcpTransport interface
 
-The `core` module defines an `AcpTransport` interface that abstracts the transport layer. `StdioAcpClientTransport` (the real implementation that launches an OS process) implements it, and so does the pipe-based `PipeAcpTransport` in the testing module. Both `AcpClient.sync()` and `AcpClient.async()` accept `AcpTransport`, so you can swap in test transport without changing client code.
+The `core` module defines an `AcpTransport` interface that abstracts the transport layer. `StdioAcpClientTransport` (the real implementation that launches an OS process) implements it, and so does the pipe-based `PipeAcpTransport` in the test module. Both `AcpClient.sync()` and `AcpClient.async()` accept `AcpTransport`, so you can swap in test transport without changing client code.
 
 ### MockAcpAgent — pipe-based mock agent
 
@@ -363,9 +363,9 @@ void handshake() {
 | Smoke-testing that a real agent accepts valid ACP messages | `AcpAgentProcess` |
 | CI where the agent binary may or may not be installed | `AcpAgentProcess` (auto-skips) |
 
-### Integration testing with JBang
+### Integration test with JBang
 
-The `integration-testing/` directory contains a standalone [JBang](https://www.jbang.dev/)-based test runner that exercises the full ACP protocol against real agents installed via the ACP registry. No Maven module or test framework is needed — just JBang and a locally built SDK.
+The `integration-test/` directory contains a standalone [JBang](https://www.jbang.dev/)-based test runner that exercises the full ACP protocol against real agents installed via the ACP registry. No Maven module or test framework is needed — just JBang and a locally built SDK.
 
 #### Prerequisites
 
@@ -384,16 +384,16 @@ acp registry install opencode
 
 ```shell
 # Run all checks against a registry-installed agent
-jbang integration-testing/RunTests.java --agent opencode
+jbang integration-test/RunTests.java --agent opencode
 
 # Run with a custom prompt
-jbang integration-testing/RunTests.java --agent opencode --prompt "What is 2+2?"
+jbang integration-test/RunTests.java --agent opencode --prompt "What is 2+2?"
 
 # Run a specific check
-jbang integration-testing/RunTests.java --agent opencode --check initialize
+jbang integration-test/RunTests.java --agent opencode --check initialize
 
 # Run with a direct binary (no registry)
-jbang integration-testing/RunTests.java --agent-binary /path/to/agent --agent-args acp
+jbang integration-test/RunTests.java --agent-binary /path/to/agent --agent-args acp
 ```
 
 #### Available checks
@@ -421,7 +421,7 @@ jbang integration-testing/RunTests.java --agent-binary /path/to/agent --agent-ar
 #### Project structure
 
 ```
-integration-testing/
+integration-test/
 ├── RunTests.java          # JBang entry point (//DEPS, //SOURCES, CLI, runner)
 ├── AcpTestConfig.java     # Agent config — resolves from ACP registry or direct binary
 └── check/

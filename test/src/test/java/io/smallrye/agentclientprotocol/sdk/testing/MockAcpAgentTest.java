@@ -1,4 +1,4 @@
-package io.smallrye.agentclientprotocol.sdk.testing;
+package io.smallrye.agentclientprotocol.sdk.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;

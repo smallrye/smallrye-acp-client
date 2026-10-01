@@ -52,7 +52,7 @@
         <module>schema</module>
         <module>registry</module>
         <module>core</module>
-        <module>testing</module>
+        <module>test</module>
         <module>client</module>
     </modules>
 
@@ -100,7 +100,7 @@
             </dependency>
             <dependency>
                 <groupId>io.smallrye.ai</groupId>
-                <artifactId>acp-java-testing</artifactId>
+                <artifactId>acp-java-test</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

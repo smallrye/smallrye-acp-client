@@ -27,16 +27,16 @@ import java.util.Map;
  * mvn install -DskipTests
  *
  * # Run all checks against a registry-installed agent
- * jbang integration-testing/RunTests.java --agent bob
+ * jbang integration-test/RunTests.java --agent bob
  *
  * # Run with a custom prompt
- * jbang integration-testing/RunTests.java --agent bob --prompt "What is 2+2?"
+ * jbang integration-test/RunTests.java --agent bob --prompt "What is 2+2?"
  *
  * # Run a specific check
- * jbang integration-testing/RunTests.java --agent bob --check initialize
+ * jbang integration-test/RunTests.java --agent bob --check initialize
  *
  * # Run with direct binary path
- * jbang integration-testing/RunTests.java --agent-binary /path/to/agent --agent-args acp
+ * jbang integration-test/RunTests.java --agent-binary /path/to/agent --agent-args acp
  * </pre>
  */
 public class RunTests {

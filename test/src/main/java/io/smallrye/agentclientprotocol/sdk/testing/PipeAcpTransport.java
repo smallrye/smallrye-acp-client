@@ -1,4 +1,4 @@
-package io.smallrye.agentclientprotocol.sdk.testing;
+package io.smallrye.agentclientprotocol.sdk.test;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -20,7 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.agentclientprotocol.sdk.client.transport.AcpTransport;
 
 /**
- * Pipe-based {@link AcpTransport} for testing.
+ * Pipe-based {@link AcpTransport} for test.
  *
  * <p>
  * Reads and writes newline-delimited JSON-RPC 2.0 messages over

@@ -1,4 +1,4 @@
-package io.smallrye.agentclientprotocol.sdk.testing;
+package io.smallrye.agentclientprotocol.sdk.test;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -23,7 +23,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.smallrye.agentclientprotocol.sdk.client.transport.AcpTransport;
 
 /**
- * A scripted ACP agent peer for testing.
+ * A scripted ACP agent peer for test.
  *
  * <p>
  * Simulates the agent side of the ACP protocol using in-process pipes.
