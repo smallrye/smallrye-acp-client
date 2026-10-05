@@ -10,11 +10,15 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 public record McpServerHttp(
         @JsonProperty("_meta") Map<String, Object> meta,
-        @JsonProperty("type") String type,
         @JsonProperty("headers") List<HttpHeader> headers,
         @JsonProperty("name") String name,
         @JsonProperty("url") String url) {
     public McpServerHttp(List<HttpHeader> headers, String name, String url) {
-        this(null, "http", headers, name, url);
+        this(null, headers, name, url);
+    }
+
+    @JsonProperty("type")
+    public String type() {
+        return "http";
     }
 }
