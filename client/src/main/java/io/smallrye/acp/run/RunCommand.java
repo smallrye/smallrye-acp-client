@@ -227,7 +227,7 @@ public class RunCommand implements Command<CommandInvocation> {
                 mcpServers = parseMcpServerConfig(mcpServerConfig);
                 logger.debugf("Loaded %d MCP server(s) from config", mcpServers.size());
             } catch (IOException e) {
-                invocation.println("ERROR: Failed to read MCP server config: " + mcpServerConfig);
+invocation.println("ERROR: Failed to read MCP server config");
                 invocation.println("       " + e.getMessage());
                 return CommandResult.FAILURE;
             }
