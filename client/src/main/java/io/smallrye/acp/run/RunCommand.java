@@ -571,7 +571,7 @@ invocation.println("ERROR: Failed to read MCP server config");
                 }
                 case "sse" -> {
                     String url = node.get("url").asText();
-                    servers.add(new McpServerSse(parseHeaders(node), name, url));
+servers.add(mapper.convertValue(node, Object.class));
                 }
                 case "http" -> {
                     String url = node.get("url").asText();
