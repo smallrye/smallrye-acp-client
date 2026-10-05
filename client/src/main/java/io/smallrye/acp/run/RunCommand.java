@@ -575,7 +575,7 @@ servers.add(mapper.convertValue(node, Object.class));
                 }
                 case "http" -> {
                     String url = node.get("url").asText();
-                    servers.add(new McpServerHttp(parseHeaders(node), name, url));
+servers.add(mapper.convertValue(node, Object.class));
                 }
                 default -> throw new IllegalArgumentException("Unknown MCP server type: " + type
                         + ". Supported types: stdio, sse, http");
