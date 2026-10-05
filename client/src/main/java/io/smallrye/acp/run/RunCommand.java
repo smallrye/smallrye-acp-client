@@ -226,8 +226,9 @@ public class RunCommand implements Command<CommandInvocation> {
             try {
                 mcpServers = parseMcpServerConfig(mcpServerConfig);
                 logger.debugf("Loaded %d MCP server(s) from config", mcpServers.size());
-            } catch (IOException e) {
-invocation.println("ERROR: Failed to read MCP server config");
+            } catch (Exception e) {
+                String configRef = isInlineJson(mcpServerConfig) ? "(inline JSON)" : mcpServerConfig;
+                invocation.println("ERROR: Failed to parse MCP server config: " + configRef);
                 invocation.println("       " + e.getMessage());
                 return CommandResult.FAILURE;
             }
@@ -535,12 +536,11 @@ invocation.println("ERROR: Failed to read MCP server config");
         return content != null ? content.toString() : "";
     }
 
-    private static List<Object> parseMcpServerConfig(String config) throws IOException {
+    static List<Object> parseMcpServerConfig(String config) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
-        String trimmed = config.trim();
         String json;
-        if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
-            json = trimmed;
+        if (isInlineJson(config)) {
+            json = config.trim();
         } else {
             json = Files.readString(Path.of(config));
         }
@@ -571,17 +571,22 @@ invocation.println("ERROR: Failed to read MCP server config");
                 }
                 case "sse" -> {
                     String url = node.get("url").asText();
-servers.add(mapper.convertValue(node, Object.class));
+                    servers.add(new McpServerSse(parseHeaders(node), name, url));
                 }
                 case "http" -> {
                     String url = node.get("url").asText();
-servers.add(mapper.convertValue(node, Object.class));
+                    servers.add(new McpServerHttp(parseHeaders(node), name, url));
                 }
                 default -> throw new IllegalArgumentException("Unknown MCP server type: " + type
                         + ". Supported types: stdio, sse, http");
             }
         }
         return servers;
+    }
+
+    static boolean isInlineJson(String config) {
+        String trimmed = config.trim();
+        return trimmed.startsWith("[") || trimmed.startsWith("{");
     }
 
     private static List<HttpHeader> parseHeaders(JsonNode node) {

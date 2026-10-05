@@ -10,10 +10,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 public record McpServerSse(
         @JsonProperty("_meta") Map<String, Object> meta,
+        @JsonProperty("type") String type,
         @JsonProperty("headers") List<HttpHeader> headers,
         @JsonProperty("name") String name,
         @JsonProperty("url") String url) {
     public McpServerSse(List<HttpHeader> headers, String name, String url) {
-        this(null, headers, name, url);
+        this(null, "sse", headers, name, url);
     }
 }
