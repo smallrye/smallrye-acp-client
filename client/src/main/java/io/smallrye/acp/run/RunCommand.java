@@ -1,8 +1,10 @@
 package io.smallrye.acp.run;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
@@ -13,6 +15,9 @@ import org.aesh.command.CommandResult;
 import org.aesh.command.invocation.CommandInvocation;
 import org.aesh.command.option.Option;
 import org.jboss.logging.Logger;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.smallrye.acp.toolbox.GitUtil;
 import io.smallrye.acp.toolbox.ProjectUtil;
@@ -99,6 +104,9 @@ public class RunCommand implements Command<CommandInvocation> {
 
     @Option(shortName = 's', name = "skill-path", description = "Absolute path to a skills folder to add as additional directory [env: SKILL_PATH]")
     String skillPath;
+
+    @Option(name = "mcp-server-config", description = "MCP server configuration: path to a JSON file or inline JSON array. Supports stdio, sse, and http transport types [env: ACP_MCP_SERVER_CONFIG]")
+    String mcpServerConfig;
 
     @Option(shortName = 'b', name = "backup", description = "Backup workspace to target/workdirs before running: yes, no (default: yes). Only applies to Maven/Gradle projects [env: ACP_BACKUP]")
     String backup;
@@ -212,6 +220,21 @@ public class RunCommand implements Command<CommandInvocation> {
             }
         }
 
+        mcpServerConfig = ProjectUtil.resolveValueWithPrecedence(mcpServerConfig, "ACP_MCP_SERVER_CONFIG", null);
+        final List<Object> mcpServers;
+        if (mcpServerConfig != null && !mcpServerConfig.isEmpty()) {
+            try {
+                mcpServers = parseMcpServerConfig(mcpServerConfig);
+                logger.debugf("Loaded %d MCP server(s) from config", mcpServers.size());
+            } catch (IOException e) {
+                invocation.println("ERROR: Failed to read MCP server config: " + mcpServerConfig);
+                invocation.println("       " + e.getMessage());
+                return CommandResult.FAILURE;
+            }
+        } else {
+            mcpServers = List.of();
+        }
+
         var paramBuilder = AgentParameters.builder(binary);
         if (args != null && !args.isEmpty()) {
             paramBuilder.args(List.of(args.split(",")));
@@ -236,6 +259,7 @@ public class RunCommand implements Command<CommandInvocation> {
 
             var workflow = client.workflow()
                     .withWorkspace(cwd)
+                    .mcpServers(mcpServers)
                     .onInitialized(RunCommand::logInitialized);
 
             if (resumeSessionId != null && !resumeSessionId.isEmpty()) {
@@ -509,6 +533,64 @@ public class RunCommand implements Command<CommandInvocation> {
             return text != null ? text.toString() : content.toString();
         }
         return content != null ? content.toString() : "";
+    }
+
+    private static List<Object> parseMcpServerConfig(String config) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        String trimmed = config.trim();
+        String json;
+        if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+            json = trimmed;
+        } else {
+            json = Files.readString(Path.of(config));
+        }
+
+        JsonNode tree = mapper.readTree(json);
+        if (!tree.isArray()) {
+            tree = mapper.createArrayNode().add(tree);
+        }
+
+        List<Object> servers = new ArrayList<>();
+        for (JsonNode node : tree) {
+            String type = node.has("type") ? node.get("type").asText() : "stdio";
+            String name = node.get("name").asText();
+
+            switch (type) {
+                case "stdio" -> {
+                    String command = node.get("command").asText();
+                    List<String> args = new ArrayList<>();
+                    if (node.has("args")) {
+                        node.get("args").forEach(a -> args.add(a.asText()));
+                    }
+                    List<EnvVariable> env = new ArrayList<>();
+                    if (node.has("env")) {
+                        node.get("env").forEach(e -> env.add(new EnvVariable(
+                                e.get("name").asText(), e.get("value").asText())));
+                    }
+                    servers.add(new McpServerStdio(args, command, env, name));
+                }
+                case "sse" -> {
+                    String url = node.get("url").asText();
+                    servers.add(new McpServerSse(parseHeaders(node), name, url));
+                }
+                case "http" -> {
+                    String url = node.get("url").asText();
+                    servers.add(new McpServerHttp(parseHeaders(node), name, url));
+                }
+                default -> throw new IllegalArgumentException("Unknown MCP server type: " + type
+                        + ". Supported types: stdio, sse, http");
+            }
+        }
+        return servers;
+    }
+
+    private static List<HttpHeader> parseHeaders(JsonNode node) {
+        List<HttpHeader> headers = new ArrayList<>();
+        if (node.has("headers")) {
+            node.get("headers").forEach(h -> headers.add(new HttpHeader(
+                    h.get("name").asText(), h.get("value").asText())));
+        }
+        return headers;
     }
 
     private static void checkProviderEnv(String agent, String provider) {
