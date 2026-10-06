@@ -52,6 +52,7 @@
         <module>schema</module>
         <module>registry</module>
         <module>core</module>
+        <module>test</module>
         <module>client</module>
     </modules>
 
@@ -95,6 +96,11 @@
             <dependency>
                 <groupId>io.smallrye.ai</groupId>
                 <artifactId>acp-client-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.smallrye.ai</groupId>
+                <artifactId>acp-java-test</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

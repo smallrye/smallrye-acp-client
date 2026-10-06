@@ -14,16 +14,8 @@ import java.util.function.Consumer;
 
 import org.jboss.logging.Logger;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.fasterxml.jackson.databind.ser.std.StdSerializer;
-
-import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.TextContent;
 
 /**
  * ACP stdio transport.
@@ -47,12 +39,12 @@ import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.TextContent;
  * <ul>
  * <li>{@code FAIL_ON_UNKNOWN_PROPERTIES = false} for forward compatibility</li>
  * <li>{@code NON_NULL} serialization to avoid sending null fields</li>
- * <li>A custom {@link TextContent} serializer that adds the required {@code "type": "text"} discriminator</li>
+ * <li>A custom {@code TextContent} serializer that adds the required {@code "type": "text"} discriminator</li>
  * </ul>
  *
  * @see AgentParameters
  */
-public class StdioAcpClientTransport {
+public class StdioAcpClientTransport implements AcpTransport {
 
     private static final Logger logger = Logger.getLogger(StdioAcpClientTransport.class);
 
@@ -81,40 +73,7 @@ public class StdioAcpClientTransport {
      * @param params the agent process configuration
      */
     public StdioAcpClientTransport(AgentParameters params) {
-        this(params, createDefaultMapper());
-    }
-
-    private static ObjectMapper createDefaultMapper() {
-        ObjectMapper mapper = new ObjectMapper()
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-                .setSerializationInclusion(JsonInclude.Include.NON_NULL);
-
-        // ACP server requires "type" discriminator on content objects
-        SimpleModule module = new SimpleModule("AcpContentTypes");
-        module.addSerializer(TextContent.class, new TextContentSerializer());
-        mapper.registerModule(module);
-        return mapper;
-    }
-
-    /**
-     * Custom serializer that adds the required "type": "text" field
-     * when serializing TextContent for the ACP protocol.
-     */
-    static class TextContentSerializer extends StdSerializer<TextContent> {
-        TextContentSerializer() {
-            super(TextContent.class);
-        }
-
-        @Override
-        public void serialize(TextContent value, JsonGenerator gen, SerializerProvider provider) throws IOException {
-            gen.writeStartObject();
-            gen.writeStringField("type", "text");
-            gen.writeStringField("text", value.text());
-            if (value.annotations() != null) {
-                gen.writeObjectField("annotations", value.annotations());
-            }
-            gen.writeEndObject();
-        }
+        this(params, AcpTransport.defaultMapper());
     }
 
     /**
@@ -149,6 +108,7 @@ public class StdioAcpClientTransport {
      *
      * @param handler the message consumer
      */
+    @Override
     public void setInboundMessageHandler(Consumer<JsonNode> handler) {
         this.inboundMessageHandler = handler;
     }
@@ -185,6 +145,7 @@ public class StdioAcpClientTransport {
     /**
      * Launches the agent process and starts the inbound, outbound, and error processing threads.
      */
+    @Override
     public void connect() {
         logger.debug("ACP agent starting");
 
@@ -219,6 +180,7 @@ public class StdioAcpClientTransport {
      *
      * @param message the JSON message to send
      */
+    @Override
     public void sendMessage(JsonNode message) {
         outboundQueue.add(message);
     }
@@ -311,6 +273,7 @@ public class StdioAcpClientTransport {
      * sends SIGTERM to the agent process, waits up to 5 seconds for exit,
      * and shuts down all executor threads.
      */
+    @Override
     public void closeGracefully() {
         isClosing = true;
         logger.debug("Initiating graceful shutdown");
@@ -355,6 +318,7 @@ public class StdioAcpClientTransport {
      *
      * @return the configured mapper
      */
+    @Override
     public ObjectMapper getMapper() {
         return mapper;
     }

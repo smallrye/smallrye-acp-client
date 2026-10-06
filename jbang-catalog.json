@@ -1,8 +1,12 @@
 {
   "aliases": {
     "acp": {
-      "script-ref": "client/target/acp-java-client-0.1.2-SNAPSHOT-runner.jar",
+      "script-ref": "client/target/acp-java-client-0.2.1-SNAPSHOT-runner.jar",
       "description": "ACP Java Client for any ACP-compatible agent"
+    },
+    "acp-tests": {
+      "script-ref": "integration-test/RunTests.java",
+      "description": "Run ACP integration tests against a registry-installed agent"
     }
   }
 }
