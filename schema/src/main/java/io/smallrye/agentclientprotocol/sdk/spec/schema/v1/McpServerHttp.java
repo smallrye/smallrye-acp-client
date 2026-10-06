@@ -16,4 +16,9 @@ public record McpServerHttp(
     public McpServerHttp(List<HttpHeader> headers, String name, String url) {
         this(null, headers, name, url);
     }
+
+    @JsonProperty("type")
+    public String type() {
+        return "http";
+    }
 }

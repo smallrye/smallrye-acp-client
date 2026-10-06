@@ -1,8 +1,10 @@
 package io.smallrye.acp.run;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
@@ -13,6 +15,9 @@ import org.aesh.command.CommandResult;
 import org.aesh.command.invocation.CommandInvocation;
 import org.aesh.command.option.Option;
 import org.jboss.logging.Logger;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.smallrye.acp.toolbox.GitUtil;
 import io.smallrye.acp.toolbox.ProjectUtil;
@@ -52,6 +57,7 @@ import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
 public class RunCommand implements Command<CommandInvocation> {
 
     private static final Logger logger = Logger.getLogger(RunCommand.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final AcpRegistryManager registryManager = new AcpRegistryManager();
 
@@ -99,6 +105,9 @@ public class RunCommand implements Command<CommandInvocation> {
 
     @Option(shortName = 's', name = "skill-path", description = "Absolute path to a skills folder to add as additional directory [env: SKILL_PATH]")
     String skillPath;
+
+    @Option(name = "mcp-server-config", description = "MCP server configuration: path to a JSON file or inline JSON array. Supports stdio, sse, and http transport types [env: ACP_MCP_SERVER_CONFIG]")
+    String mcpServerConfig;
 
     @Option(shortName = 'b', name = "backup", description = "Backup workspace to target/workdirs before running: yes, no (default: yes). Only applies to Maven/Gradle projects [env: ACP_BACKUP]")
     String backup;
@@ -212,6 +221,22 @@ public class RunCommand implements Command<CommandInvocation> {
             }
         }
 
+        mcpServerConfig = ProjectUtil.resolveValueWithPrecedence(mcpServerConfig, "ACP_MCP_SERVER_CONFIG", null);
+        final List<Object> mcpServers;
+        if (mcpServerConfig != null && !mcpServerConfig.isEmpty()) {
+            try {
+                mcpServers = parseMcpServerConfig(mcpServerConfig);
+                logger.debugf("Loaded %d MCP server(s) from config", mcpServers.size());
+            } catch (IOException | IllegalArgumentException e) {
+                String configRef = isInlineJson(mcpServerConfig) ? "(inline JSON)" : mcpServerConfig;
+                invocation.println("ERROR: Failed to parse MCP server config: " + configRef);
+                invocation.println("       " + e.getMessage());
+                return CommandResult.FAILURE;
+            }
+        } else {
+            mcpServers = List.of();
+        }
+
         var paramBuilder = AgentParameters.builder(binary);
         if (args != null && !args.isEmpty()) {
             paramBuilder.args(List.of(args.split(",")));
@@ -236,6 +261,7 @@ public class RunCommand implements Command<CommandInvocation> {
 
             var workflow = client.workflow()
                     .withWorkspace(cwd)
+                    .mcpServers(mcpServers)
                     .onInitialized(RunCommand::logInitialized);
 
             if (resumeSessionId != null && !resumeSessionId.isEmpty()) {
@@ -509,6 +535,122 @@ public class RunCommand implements Command<CommandInvocation> {
             return text != null ? text.toString() : content.toString();
         }
         return content != null ? content.toString() : "";
+    }
+
+    static List<Object> parseMcpServerConfig(String config) throws IOException {
+        ObjectMapper mapper = MAPPER;
+        String json;
+        if (isInlineJson(config)) {
+            json = config.trim();
+        } else {
+            json = Files.readString(Path.of(config));
+        }
+
+        JsonNode tree = mapper.readTree(json);
+        if (!tree.isArray()) {
+            tree = mapper.createArrayNode().add(tree);
+        }
+
+        List<Object> servers = new ArrayList<>();
+        for (int i = 0; i < tree.size(); i++) {
+            JsonNode node = tree.get(i);
+            if (!node.isObject()) {
+                throw new IllegalArgumentException(
+                        "MCP server entry at index " + i + " must be a JSON object");
+            }
+
+            String type = requireTextField(node, "type", i, "stdio");
+            String name = requireTextField(node, "name", i, null);
+
+            switch (type) {
+                case "stdio" -> {
+                    String command = requireTextField(node, "command", i, null);
+                    List<String> args = requireTextArray(node, "args", i);
+                    List<EnvVariable> env = new ArrayList<>();
+                    if (node.has("env")) {
+                        requireArray(node, "env", i);
+                        for (JsonNode e : node.get("env")) {
+                            env.add(new EnvVariable(
+                                    requireTextField(e, "name", i, null),
+                                    requireTextField(e, "value", i, null)));
+                        }
+                    }
+                    servers.add(new McpServerStdio(args, command, env, name));
+                }
+                case "sse" -> {
+                    String url = requireTextField(node, "url", i, null);
+                    servers.add(new McpServerSse(parseHeaders(node, i), name, url));
+                }
+                case "http" -> {
+                    String url = requireTextField(node, "url", i, null);
+                    servers.add(new McpServerHttp(parseHeaders(node, i), name, url));
+                }
+                default -> throw new IllegalArgumentException("Unknown MCP server type: '" + type
+                        + "' at index " + i + ". Supported types: stdio, sse, http");
+            }
+        }
+        return servers;
+    }
+
+    private static String requireTextField(JsonNode node, String field, int index, String defaultValue) {
+        JsonNode value = node.get(field);
+        if (value == null || value.isNull()) {
+            if (defaultValue != null) {
+                return defaultValue;
+            }
+            throw new IllegalArgumentException(
+                    "Missing required field '" + field + "' in MCP server entry at index " + index);
+        }
+        if (!value.isTextual()) {
+            throw new IllegalArgumentException(
+                    "Field '" + field + "' must be a string in MCP server entry at index " + index
+                            + ", got " + value.getNodeType());
+        }
+        return value.asText();
+    }
+
+    private static void requireArray(JsonNode node, String field, int index) {
+        JsonNode value = node.get(field);
+        if (value != null && !value.isArray()) {
+            throw new IllegalArgumentException(
+                    "Field '" + field + "' must be an array in MCP server entry at index " + index
+                            + ", got " + value.getNodeType());
+        }
+    }
+
+    private static List<String> requireTextArray(JsonNode node, String field, int index) {
+        List<String> result = new ArrayList<>();
+        if (!node.has(field)) {
+            return result;
+        }
+        requireArray(node, field, index);
+        for (JsonNode element : node.get(field)) {
+            if (!element.isTextual()) {
+                throw new IllegalArgumentException(
+                        "Elements of '" + field + "' must be strings in MCP server entry at index " + index
+                                + ", got " + element.getNodeType());
+            }
+            result.add(element.asText());
+        }
+        return result;
+    }
+
+    static boolean isInlineJson(String config) {
+        String trimmed = config.trim();
+        return trimmed.startsWith("[") || trimmed.startsWith("{");
+    }
+
+    private static List<HttpHeader> parseHeaders(JsonNode node, int index) {
+        List<HttpHeader> headers = new ArrayList<>();
+        if (node.has("headers")) {
+            requireArray(node, "headers", index);
+            for (JsonNode h : node.get("headers")) {
+                headers.add(new HttpHeader(
+                        requireTextField(h, "name", index, null),
+                        requireTextField(h, "value", index, null)));
+            }
+        }
+        return headers;
     }
 
     private static void checkProviderEnv(String agent, String provider) {

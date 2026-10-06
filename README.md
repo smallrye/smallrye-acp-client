@@ -439,6 +439,70 @@ acp run -a claude-acp --skill-path https://github.com/org/skills-repo -p "Follow
 ```
 
 
+### MCP server configuration
+
+The CLI supports attaching MCP servers to agent sessions via `--mcp-server-config`. The option accepts either a path to a JSON configuration file or inline JSON. The agent connects to the specified MCP servers when creating or resuming the session.
+
+```shell
+# Using a JSON config file
+acp run -a claude-acp --mcp-server-config /path/to/mcp-servers.json \
+  -p "List files in /tmp"
+
+# Using inline JSON
+acp run -a claude-acp \
+  --mcp-server-config '[{"type":"stdio","name":"filesystem","command":"npx","args":["-y","@anthropic-ai/mcp-filesystem","/tmp"]}]' \
+  -p "List files in /tmp"
+
+# Using an environment variable
+export ACP_MCP_SERVER_CONFIG=/path/to/mcp-servers.json
+acp run -a claude-acp -p "List files in /tmp"
+```
+
+The JSON configuration supports three transport types. Each entry requires a `type` discriminator:
+
+**Stdio** (all agents support this):
+```json
+{
+  "type": "stdio",
+  "name": "filesystem",
+  "command": "npx",
+  "args": ["-y", "@anthropic-ai/mcp-filesystem", "/tmp"],
+  "env": [
+    { "name": "DEBUG", "value": "true" }
+  ]
+}
+```
+
+**HTTP** (requires agent `mcpCapabilities.http = true`):
+```json
+{
+  "type": "http",
+  "name": "my-api",
+  "url": "http://localhost:3000/mcp",
+  "headers": [
+    { "name": "Authorization", "value": "Bearer token123" }
+  ]
+}
+```
+
+**SSE** (requires agent `mcpCapabilities.sse = true`):
+```json
+{
+  "type": "sse",
+  "name": "my-sse-server",
+  "url": "http://localhost:3000/sse",
+  "headers": []
+}
+```
+
+Multiple servers can be specified as a JSON array:
+```json
+[
+  { "type": "stdio", "name": "filesystem", "command": "npx", "args": ["-y", "@anthropic-ai/mcp-filesystem", "/tmp"] },
+  { "type": "http", "name": "my-api", "url": "http://localhost:3000/mcp", "headers": [] }
+]
+```
+
 ## Permissions
 
 When an agent needs to perform a sensitive operation (e.g. writing a file, running a command), it sends a `session/request_permission` request. The client responds automatically based on the `--permission-mode` value:

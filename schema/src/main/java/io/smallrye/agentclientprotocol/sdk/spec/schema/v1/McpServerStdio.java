@@ -17,4 +17,9 @@ public record McpServerStdio(
     public McpServerStdio(List<String> args, String command, List<EnvVariable> env, String name) {
         this(null, args, command, env, name);
     }
+
+    @JsonProperty("type")
+    public String type() {
+        return "stdio";
+    }
 }

@@ -16,4 +16,9 @@ public record McpServerSse(
     public McpServerSse(List<HttpHeader> headers, String name, String url) {
         this(null, headers, name, url);
     }
+
+    @JsonProperty("type")
+    public String type() {
+        return "sse";
+    }
 }
