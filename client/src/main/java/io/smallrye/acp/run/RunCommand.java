@@ -551,37 +551,87 @@ public class RunCommand implements Command<CommandInvocation> {
         }
 
         List<Object> servers = new ArrayList<>();
-        for (JsonNode node : tree) {
-            String type = node.has("type") ? node.get("type").asText() : "stdio";
-            String name = node.get("name").asText();
+        for (int i = 0; i < tree.size(); i++) {
+            JsonNode node = tree.get(i);
+            if (!node.isObject()) {
+                throw new IllegalArgumentException(
+                        "MCP server entry at index " + i + " must be a JSON object");
+            }
+
+            String type = requireTextField(node, "type", i, "stdio");
+            String name = requireTextField(node, "name", i, null);
 
             switch (type) {
                 case "stdio" -> {
-                    String command = node.get("command").asText();
-                    List<String> args = new ArrayList<>();
-                    if (node.has("args")) {
-                        node.get("args").forEach(a -> args.add(a.asText()));
-                    }
+                    String command = requireTextField(node, "command", i, null);
+                    List<String> args = requireTextArray(node, "args", i);
                     List<EnvVariable> env = new ArrayList<>();
                     if (node.has("env")) {
-                        node.get("env").forEach(e -> env.add(new EnvVariable(
-                                e.get("name").asText(), e.get("value").asText())));
+                        requireArray(node, "env", i);
+                        for (JsonNode e : node.get("env")) {
+                            env.add(new EnvVariable(
+                                    requireTextField(e, "name", i, null),
+                                    requireTextField(e, "value", i, null)));
+                        }
                     }
                     servers.add(new McpServerStdio(args, command, env, name));
                 }
                 case "sse" -> {
-                    String url = node.get("url").asText();
-                    servers.add(new McpServerSse(parseHeaders(node), name, url));
+                    String url = requireTextField(node, "url", i, null);
+                    servers.add(new McpServerSse(parseHeaders(node, i), name, url));
                 }
                 case "http" -> {
-                    String url = node.get("url").asText();
-                    servers.add(new McpServerHttp(parseHeaders(node), name, url));
+                    String url = requireTextField(node, "url", i, null);
+                    servers.add(new McpServerHttp(parseHeaders(node, i), name, url));
                 }
-                default -> throw new IllegalArgumentException("Unknown MCP server type: " + type
-                        + ". Supported types: stdio, sse, http");
+                default -> throw new IllegalArgumentException("Unknown MCP server type: '" + type
+                        + "' at index " + i + ". Supported types: stdio, sse, http");
             }
         }
         return servers;
+    }
+
+    private static String requireTextField(JsonNode node, String field, int index, String defaultValue) {
+        JsonNode value = node.get(field);
+        if (value == null || value.isNull()) {
+            if (defaultValue != null) {
+                return defaultValue;
+            }
+            throw new IllegalArgumentException(
+                    "Missing required field '" + field + "' in MCP server entry at index " + index);
+        }
+        if (!value.isTextual()) {
+            throw new IllegalArgumentException(
+                    "Field '" + field + "' must be a string in MCP server entry at index " + index
+                            + ", got " + value.getNodeType());
+        }
+        return value.asText();
+    }
+
+    private static void requireArray(JsonNode node, String field, int index) {
+        JsonNode value = node.get(field);
+        if (value != null && !value.isArray()) {
+            throw new IllegalArgumentException(
+                    "Field '" + field + "' must be an array in MCP server entry at index " + index
+                            + ", got " + value.getNodeType());
+        }
+    }
+
+    private static List<String> requireTextArray(JsonNode node, String field, int index) {
+        List<String> result = new ArrayList<>();
+        if (!node.has(field)) {
+            return result;
+        }
+        requireArray(node, field, index);
+        for (JsonNode element : node.get(field)) {
+            if (!element.isTextual()) {
+                throw new IllegalArgumentException(
+                        "Elements of '" + field + "' must be strings in MCP server entry at index " + index
+                                + ", got " + element.getNodeType());
+            }
+            result.add(element.asText());
+        }
+        return result;
     }
 
     static boolean isInlineJson(String config) {
@@ -589,11 +639,15 @@ public class RunCommand implements Command<CommandInvocation> {
         return trimmed.startsWith("[") || trimmed.startsWith("{");
     }
 
-    private static List<HttpHeader> parseHeaders(JsonNode node) {
+    private static List<HttpHeader> parseHeaders(JsonNode node, int index) {
         List<HttpHeader> headers = new ArrayList<>();
         if (node.has("headers")) {
-            node.get("headers").forEach(h -> headers.add(new HttpHeader(
-                    h.get("name").asText(), h.get("value").asText())));
+            requireArray(node, "headers", index);
+            for (JsonNode h : node.get("headers")) {
+                headers.add(new HttpHeader(
+                        requireTextField(h, "name", index, null),
+                        requireTextField(h, "value", index, null)));
+            }
         }
         return headers;
     }
