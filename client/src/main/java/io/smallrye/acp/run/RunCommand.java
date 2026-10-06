@@ -57,6 +57,7 @@ import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
 public class RunCommand implements Command<CommandInvocation> {
 
     private static final Logger logger = Logger.getLogger(RunCommand.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final AcpRegistryManager registryManager = new AcpRegistryManager();
 
@@ -537,7 +538,7 @@ public class RunCommand implements Command<CommandInvocation> {
     }
 
     static List<Object> parseMcpServerConfig(String config) throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = MAPPER;
         String json;
         if (isInlineJson(config)) {
             json = config.trim();
