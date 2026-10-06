@@ -3,13 +3,12 @@ package io.smallrye.agentclientprotocol.sdk.test;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
+import org.jboss.logging.Logger;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
-
-import org.jboss.logging.Logger;
 
 import io.smallrye.agentclientprotocol.sdk.client.AcpAsyncClient;
 import io.smallrye.agentclientprotocol.sdk.client.AcpClient;
@@ -138,10 +137,6 @@ public class AcpAgentProcess implements BeforeAllCallback, AfterEachCallback, Af
             }
         } catch (Exception e) {
             logger.warnf(e, "Client shutdown failed for agent '%s'", command[0]);
-        } finally {
-            if (transport != null) {
-                transport.closeGracefully();
-            }
         }
     }
 
