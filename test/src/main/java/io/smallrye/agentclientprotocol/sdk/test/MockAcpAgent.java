@@ -103,7 +103,7 @@ public class MockAcpAgent implements AutoCloseable {
             PipedOutputStream agentToClientOut = new PipedOutputStream();
             PipedInputStream agentToClientIn = new PipedInputStream(agentToClientOut, PIPE_BUFFER_SIZE);
 
-            ObjectMapper mapper = AcpTransport.createDefaultMapper();
+            ObjectMapper mapper = AcpTransport.defaultMapper();
 
             PipeAcpTransport clientTransport = new PipeAcpTransport(agentToClientIn, clientToAgentOut, mapper);
 

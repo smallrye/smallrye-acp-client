@@ -57,7 +57,7 @@ public class PipeAcpTransport implements AcpTransport {
      * @param outbound the stream to which client requests are written
      */
     public PipeAcpTransport(InputStream inbound, OutputStream outbound) {
-        this(inbound, outbound, AcpTransport.createDefaultMapper());
+        this(inbound, outbound, AcpTransport.defaultMapper());
     }
 
     /**

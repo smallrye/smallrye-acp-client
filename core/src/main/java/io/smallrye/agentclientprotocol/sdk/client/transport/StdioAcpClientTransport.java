@@ -73,11 +73,7 @@ public class StdioAcpClientTransport implements AcpTransport {
      * @param params the agent process configuration
      */
     public StdioAcpClientTransport(AgentParameters params) {
-        this(params, createDefaultMapper());
-    }
-
-    private static ObjectMapper createDefaultMapper() {
-        return AcpTransport.createDefaultMapper();
+        this(params, AcpTransport.defaultMapper());
     }
 
     /**

@@ -82,7 +82,7 @@ public interface AcpTransport {
      *
      * @return the shared configured mapper
      */
-    static ObjectMapper createDefaultMapper() {
+    static ObjectMapper defaultMapper() {
         return DEFAULT_MAPPER;
     }
 }
