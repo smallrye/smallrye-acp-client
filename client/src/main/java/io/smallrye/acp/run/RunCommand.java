@@ -227,7 +227,7 @@ public class RunCommand implements Command<CommandInvocation> {
             try {
                 mcpServers = parseMcpServerConfig(mcpServerConfig);
                 logger.debugf("Loaded %d MCP server(s) from config", mcpServers.size());
-            } catch (Exception e) {
+            } catch (IOException | IllegalArgumentException e) {
                 String configRef = isInlineJson(mcpServerConfig) ? "(inline JSON)" : mcpServerConfig;
                 invocation.println("ERROR: Failed to parse MCP server config: " + configRef);
                 invocation.println("       " + e.getMessage());
