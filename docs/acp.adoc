@@ -21,3 +21,4 @@ Display this help and exit
 * link:acp-run.adoc[*run*] - Run a headless (non-interactive) conversation with an ACP agent
 * link:acp-registry.adoc[*registry*] - Manage ACP agents via the registry: list, install, remove
 * link:acp-model.adoc[*model*] - Manage model: list
+

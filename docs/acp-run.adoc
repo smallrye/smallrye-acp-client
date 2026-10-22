@@ -8,7 +8,7 @@ acp run -- Run a headless (non-interactive) conversation with an ACP agent
 
 [source]
 ----
-acp run [-hv] [-a=<agent>] [--agent-binary=<agent-binary>] [--agent-args=<agent-args>] -p=<prompt> [--provider=<provider>] [-m=<model>] [--request-timeout=<request-timeout>] [--prompt-request-timeout=<prompt-request-timeout>] [--permission-mode=<permission-mode>] [-s=<skill-path>] [-b=<backup>] [--backup-project-name=<backup-project-name>] [--workspace-path=<workspace-path>] [-o=<output>] [-l=<log-level>]
+acp run [-hv] [-a=<agent>] [--agent-binary=<agent-binary>] [--agent-args=<agent-args>] -p=<prompt> [--provider=<provider>] [-m=<model>] [--request-timeout=<request-timeout>] [--prompt-request-timeout=<prompt-request-timeout>] [--permission-mode=<permission-mode>] [-s=<skill-path>] [--mcp-server-config=<mcp-server-config>] [-b=<backup>] [--backup-project-name=<backup-project-name>] [--workspace-path=<workspace-path>] [-o=<output>] [--resume-session-id=<resume-session-id>] [-l=<log-level>]
 ----
 
 == OPTIONS
@@ -50,6 +50,9 @@ Default: `allow_always`
 *-s*, *--skill-path*=<skill-path>::
 Absolute path to a skills folder to add as additional directory [env: SKILL_PATH]
 
+*--mcp-server-config*=<mcp-server-config>::
+MCP server configuration: path to a JSON file or inline JSON array. Supports stdio, sse, and http transport types [env: ACP_MCP_SERVER_CONFIG]
+
 *-b*, *--backup*=<backup>::
 Backup workspace to target/workdirs before running: yes, no (default: yes). Only applies to Maven/Gradle projects [env: ACP_BACKUP]
 
@@ -63,6 +66,9 @@ Aliases: `--wks`
 
 *-o*, *--output*=<output>::
 Output mode: default (human-friendly), json (raw JSON-RPC messages) [env: ACP_OUTPUT]
+
+*--resume-session-id*=<resume-session-id>::
+Resume an existing session by its ID instead of creating a new one. Uses session/list + session/load [env: ACP_RESUME_SESSION_ID]
 
 *-v*, *--verbose*::
 Enable to log JSON RPC messages [env: ACP_VERBOSE]

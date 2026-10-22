@@ -23,3 +23,4 @@ Path to a local registry JSON file (bypasses the remote registry fetch)
 
 *<agentId>*::
 Agent identifier from the ACP registry (e.g. opencode, claude-acp, gemini)
+

@@ -2,7 +2,7 @@
 
 == NAME
 
-acp registry list -- List ACP agents (installed or from the registry)
+acp registry list -- List ACP agents: installed or from the remote acp registry.
 
 == SYNOPSIS
 
@@ -13,5 +13,6 @@ acp registry list [-r]
 
 == OPTIONS
 
-*-r*, *--registry*::
+*-r*, *--remote*::
 List all agents from the remote ACP registry instead of the locally installed
+

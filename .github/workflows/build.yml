@@ -26,3 +26,6 @@ jobs:
 
       - name: Build with Maven
         run: mvn -B compile -ntp -Dmaven.compiler.source=${{ matrix.java }} -Dmaven.compiler.target=${{ matrix.java }}
+
+      - name: Build client commands documentation
+        run: java -jar client/target/acp-java-client-*-runner.jar --aesh-doc asciidoc --output-dir docs/
