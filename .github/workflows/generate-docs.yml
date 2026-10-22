@@ -1,6 +1,7 @@
 name: Generate CLI Docs
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [ main ]
     paths:
