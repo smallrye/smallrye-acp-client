@@ -1,7 +1,7 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
-//DEPS io.smallrye.ai:acp-java-core:0.2.1-SNAPSHOT
-//DEPS io.smallrye.ai:acp-java-schema:0.2.1-SNAPSHOT
-//DEPS io.smallrye.ai:acp-java-registry:0.2.1-SNAPSHOT
+//DEPS io.smallrye.ai:acp-java-core:0.2.2-SNAPSHOT
+//DEPS io.smallrye.ai:acp-java-schema:0.2.2-SNAPSHOT
+//DEPS io.smallrye.ai:acp-java-registry:0.2.2-SNAPSHOT
 //DEPS org.jboss.logging:jboss-logging:3.6.3.Final
 //SOURCES AcpTestConfig.java
 //SOURCES check/Check.java
