@@ -4,15 +4,15 @@ import java.time.Duration;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import io.smallrye.agentclientprotocol.sdk.client.transport.StdioAcpClientTransport;
+import io.smallrye.agentclientprotocol.sdk.client.transport.AcpTransport;
 import io.smallrye.agentclientprotocol.sdk.spec.schema.v1.*;
 
 /**
  * Factory for creating ACP clients with a fluent builder API.
  *
  * <p>
- * Use {@link #sync(StdioAcpClientTransport)} for blocking operations
- * or {@link #async(StdioAcpClientTransport)} for non-blocking operations.
+ * Use {@link #sync(AcpTransport)} for blocking operations
+ * or {@link #async(AcpTransport)} for non-blocking operations.
  *
  * <p>
  * Example:
@@ -47,7 +47,7 @@ public final class AcpClient {
      * @param transport the stdio transport to use
      * @return a {@link SyncBuilder} for configuring and building the client
      */
-    public static SyncBuilder sync(StdioAcpClientTransport transport) {
+    public static SyncBuilder sync(AcpTransport transport) {
         return new SyncBuilder(transport);
     }
 
@@ -57,7 +57,7 @@ public final class AcpClient {
      * @param transport the stdio transport to use
      * @return an {@link AsyncBuilder} for configuring and building the client
      */
-    public static AsyncBuilder async(StdioAcpClientTransport transport) {
+    public static AsyncBuilder async(AcpTransport transport) {
         return new AsyncBuilder(transport);
     }
 
@@ -80,7 +80,7 @@ public final class AcpClient {
      * @param <B> the concrete builder subtype (for fluent method chaining)
      */
     public abstract static class AbstractBuilder<B extends AbstractBuilder<B>> {
-        final StdioAcpClientTransport transport;
+        final AcpTransport transport;
         Duration requestTimeout = Duration.ofSeconds(30);
         Duration promptRequestTimeout = Duration.ZERO;
 
@@ -89,7 +89,7 @@ public final class AcpClient {
         BiConsumer<RequestPermissionRequest, String> permissionObserver;
         String permissionMode = "allow_always";
 
-        AbstractBuilder(StdioAcpClientTransport transport) {
+        AbstractBuilder(AcpTransport transport) {
             this.transport = transport;
         }
 
@@ -212,7 +212,7 @@ public final class AcpClient {
     /** Builder for configuring and creating an {@link AcpSyncClient}. */
     public static class SyncBuilder extends AbstractBuilder<SyncBuilder> {
 
-        private SyncBuilder(StdioAcpClientTransport transport) {
+        private SyncBuilder(AcpTransport transport) {
             super(transport);
         }
 
@@ -231,7 +231,7 @@ public final class AcpClient {
     /** Builder for configuring and creating an {@link AcpAsyncClient}. */
     public static class AsyncBuilder extends AbstractBuilder<AsyncBuilder> {
 
-        private AsyncBuilder(StdioAcpClientTransport transport) {
+        private AsyncBuilder(AcpTransport transport) {
             super(transport);
         }
 

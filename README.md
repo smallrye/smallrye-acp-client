@@ -13,7 +13,9 @@ The project implements the [ACP Schema Specification v1](https://agentclientprot
 | `schema`   | `acp-schema`     | ACP JSON Schema (`v1`), generated Java records/enums, and `JSonSchemaGenerator` code generator                   |
 | `registry` | `acp-registry`   | Agent registry: discovery, installation (binary/npx/uvx) and resolution of ACP agents                           |
 | `core`     | `acp-core`       | ACP client library: fluent builder, session workflow, notification router, stdio transport                       |
+| `test`  | `acp-java-test` | Test fixtures: `MockAcpAgent` (pipe-based mock) and `AcpAgentProcess` (real-agent JUnit 5 extension)          |
 | `client`   | `acp-client`     | Aesh CLI (`AcpCommands`): `run`, `reg`, `model` subcommands. Depends on `core` and `registry`. Built as Quarkus uber-jar |
+| `integration-test` | — (JBang scripts) | JBang-based integration tests against real ACP agents using the registry                         |
 
 ## Prerequisites
 
@@ -247,6 +249,187 @@ try (AcpSyncClient client = AcpClient.sync(transport)
         .build()) {
     // all JSON-RPC messages are printed to stdout
 }
+```
+
+## test
+
+The `test` module (`acp-java-test`) provides plain JUnit 5 test fixtures for the ACP protocol. No agent binary is even required.
+
+### Dependency
+
+Add the test module to your project with `test` scope:
+
+```xml
+<dependency>
+    <groupId>io.smallrye.ai</groupId>
+    <artifactId>acp-java-test</artifactId>
+    <version>${acp.version}</version>
+    <scope>test</scope>
+</dependency>
+```
+
+### AcpTransport interface
+
+The `core` module defines an `AcpTransport` interface that abstracts the transport layer. `StdioAcpClientTransport` (the real implementation that launches an OS process) implements it, and so does the pipe-based `PipeAcpTransport` in the test module. Both `AcpClient.sync()` and `AcpClient.async()` accept `AcpTransport`, so you can swap in test transport without changing client code.
+
+### MockAcpAgent — pipe-based mock agent
+
+`MockAcpAgent` simulates the agent side of the ACP protocol using in-process pipes. Register handlers for JSON-RPC methods, then pass the transport to the client. No subprocess, no network, no external dependencies.
+
+```java
+try (MockAcpAgent agent = MockAcpAgent.start()) {
+    // Register handlers for the methods the client will call
+    agent.on("initialize", params -> new InitializeResponse(
+            null, null,
+            new Implementation("test-agent", "1.0"),
+            null, 1));
+    agent.on("session/new", params -> new NewSessionResponse("session-1"));
+    agent.on("session/prompt", params -> new PromptResponse(StopReason.END_TURN));
+    agent.on("session/close", params -> new CloseSessionResponse(null));
+
+    // Wire the client to the mock agent's transport
+    AcpAsyncClient client = AcpClient.async(agent.transport())
+            .withRequestTimeout(Duration.ofSeconds(2))
+            .onSessionUpdate(notification -> { /* handle updates */ })
+            .build();
+    client.connect().join();
+
+    // Run the protocol flow
+    InitializeResponse init = client.initialize().join();
+    assertEquals("test-agent", init.agentInfo().name());
+
+    NewSessionResponse session = client.newSession(
+            new NewSessionRequest("/workspace", List.of())).join();
+    assertEquals("session-1", session.sessionId());
+
+    PromptResponse prompt = client.prompt(
+            new PromptRequest(List.of(new TextContent("hello")), "session-1")).join();
+    assertEquals(StopReason.END_TURN, prompt.stopReason());
+
+    // Inspect captured requests (all JSON-RPC messages the client sent)
+    List<JsonNode> requests = agent.requests();
+    assertEquals(4, requests.size());
+    assertEquals("initialize", requests.get(0).get("method").asText());
+
+    // The agent can also push notifications to the client
+    agent.sendNotification("session/update", Map.of(
+            "sessionId", "session-1",
+            "update", Map.of("sessionUpdate", "agent_message_chunk",
+                    "content", Map.of("type", "text", "text", "Hello!"))));
+
+    // Or send agent-originated requests (e.g. permission requests)
+    agent.sendRequest(100, "session/request_permission", permissionRequest);
+}
+```
+
+**Key features:**
+- `on(method, handler)` — register a handler that receives the `params` JsonNode and returns the response object
+- `requests()` — returns all captured JSON-RPC messages (requests and notifications) in order
+- `sendNotification(method, params)` — push a notification from the agent to the client
+- `sendRequest(id, method, params)` — send an agent-originated request (e.g. `session/request_permission`)
+- Implements `AutoCloseable` — use with try-with-resources
+
+### AcpAgentProcess — real-agent JUnit 5 extension
+
+`AcpAgentProcess` is a JUnit 5 extension for integration tests against a real ACP agent binary. It creates the transport and client automatically, and skips tests gracefully when the agent is not installed.
+
+```java
+@RegisterExtension
+static final AcpAgentProcess bob = AcpAgentProcess.command("bob", "acp");
+
+@Test
+void handshake() {
+    bob.assumeAvailable();  // skips if "bob" is not on PATH
+    bob.client().connect().join();
+    InitializeResponse init = bob.client().initialize().join();
+    assertNotNull(init.agentInfo());
+}
+```
+
+**Key features:**
+- `command(String...)` — factory method specifying the agent executable and arguments
+- `assumeAvailable()` — skips the test (not fails) if the binary is not on the system PATH
+- `client()` — returns a pre-built `AcpAsyncClient`
+- `transport()` — returns the underlying `StdioAcpClientTransport` for raw listener access
+- `withRequestTimeout(Duration)` — configures the client timeout (default: 30s)
+
+### When to use which fixture
+
+| Scenario | Fixture |
+|----------|---------|
+| Unit tests for client logic, builders, message handling | `MockAcpAgent` |
+| Testing notification routing, permission handling | `MockAcpAgent` |
+| Verifying your app's integration layer without a real agent | `MockAcpAgent` |
+| Smoke-testing that a real agent accepts valid ACP messages | `AcpAgentProcess` |
+| CI where the agent binary may or may not be installed | `AcpAgentProcess` (auto-skips) |
+
+### Integration test with JBang
+
+The `integration-test/` directory contains a standalone [JBang](https://www.jbang.dev/)-based test runner that exercises the full ACP protocol against real agents installed via the ACP registry. No Maven module or test framework is needed — just JBang and a locally built SDK.
+
+#### Prerequisites
+
+```shell
+# Install JBang (if not already installed)
+curl -Ls https://sh.jbang.dev | bash -s - app setup
+
+# Build and install the SDK jars to the local Maven repository
+mvn install -DskipTests
+
+# Install an ACP agent from the registry
+acp registry install opencode
+```
+
+#### Running the tests
+
+```shell
+# Run all checks against a registry-installed agent
+jbang integration-test/RunTests.java --agent opencode
+
+# Run with a custom prompt
+jbang integration-test/RunTests.java --agent opencode --prompt "What is 2+2?"
+
+# Run a specific check
+jbang integration-test/RunTests.java --agent opencode --check initialize
+
+# Run with a direct binary (no registry)
+jbang integration-test/RunTests.java --agent-binary /path/to/agent --agent-args acp
+```
+
+#### Available checks
+
+| Check | What it verifies |
+|-------|------------------|
+| `initialize` | Agent responds with valid protocol version and agent info (name, version) |
+| `session-lifecycle` | Session create returns a valid session ID, session close succeeds |
+| `prompt` | Prompt completes with `END_TURN` stop reason, agent produces output |
+| `workflow` | Full workflow (initialize + session + prompt + close) via `AcpSyncClient.workflow()` |
+
+#### Configuration options
+
+| Option | Env variable | Default | Description |
+|--------|-------------|---------|-------------|
+| `--agent` / `-a` | `ACP_AGENT` | `bob` | Agent ID to resolve from the ACP registry |
+| `--agent-binary` | — | — | Direct path to agent binary (skips registry) |
+| `--agent-args` | — | — | Agent arguments (comma-separated) |
+| `--prompt` / `-p` | `ACP_PROMPT` | `Say Hello` | Prompt text sent to the agent |
+| `--workspace` / `-w` | — | current dir | Workspace directory for the session |
+| `--request-timeout` | — | `30` | Timeout in seconds for JSON-RPC requests |
+| `--prompt-timeout` | — | `0` (none) | Timeout in seconds for prompt requests |
+| `--check` | — | all | Run only the named check (repeatable) |
+
+#### Project structure
+
+```
+integration-test/
+├── RunTests.java          # JBang entry point (//DEPS, //SOURCES, CLI, runner)
+├── AcpTestConfig.java     # Agent config — resolves from ACP registry or direct binary
+└── check/
+    ├── Check.java          # Check interface with PASS/FAIL result
+    ├── InitializeCheck.java
+    ├── SessionCheck.java
+    ├── PromptCheck.java
+    └── WorkflowCheck.java
 ```
 
 ## ACP CLI
