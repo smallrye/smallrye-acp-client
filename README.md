@@ -490,7 +490,7 @@ A [JBang catalog](https://www.jbang.dev/documentation/jbang/latest/alias_catalog
 {
   "aliases": {
     "acp": {
-      "script-ref": "client/target/acp-java-client-0.1.2-SNAPSHOT-runner.jar",
+      "script-ref": "client/target/acp-java-client-0.2.2-runner.jar",
       "description": "ACP Java Client for any ACP-compatible agent"
     }
   }
@@ -507,7 +507,7 @@ jbang acp run -p "What is 6+6?"
 
 To install the client using a released version published on maven central, execute the following command:
 ```shell
-jbang app install --name acp io.smallrye.ai:acp-java-client:0.1.1:runner
+jbang app install --name acp io.smallrye.ai:acp-java-client:0.2.2:runner
 
 cd /java/project/to/code/using/ai
 acp run -p "Say hello"
