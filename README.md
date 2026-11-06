@@ -483,34 +483,27 @@ List of LLM models available for the agent 'opencode':
 
 ### Running with JBang
 
-- Option A: using local catalog
-A [JBang catalog](https://www.jbang.dev/documentation/jbang/latest/alias_catalogs.html) file is provided at the project root: `jbang-catalog.json` 
-
-```json
-{
-  "aliases": {
-    "acp": {
-      "script-ref": "client/target/acp-java-client-0.1.2-SNAPSHOT-runner.jar",
-      "description": "ACP Java Client for any ACP-compatible agent"
-    }
-  }
-}
+The acp client can be installed using the information defined part of the [JBang catalog](jbang-catalog.json)
+```shell
+# Latest version defined in the catalog
+jbang app install acp@smallrye/smallrye-acp-client
 ```
 
-and can be used to install the client using a project build locally.
-
+using a specific release
 ```shell
-jbang acp run -p "What is 6+6?"
+jbang app install acp:0.2.2@smallrye/smallrye-acp-client
 ```
 
-- Option B: using released version
-
-To install the client using a released version published on maven central, execute the following command:
+or you can launch it without installing it
 ```shell
-jbang app install --name acp io.smallrye.ai:acp-java-client:0.1.1:runner
+jbang acp:0.2.2@smallrye/smallrye-acp-client run -p "Say hello"
 
 cd /java/project/to/code/using/ai
 acp run -p "Say hello"
+```
+When developing locally, built the SNAPSHOT and then run it as:
+```shell
+jbang io.smallrye.ai:acp-java-client:0.2.3-SNAPSHOT:runner run -p "Say hello"
 ```
 
 ### Output modes

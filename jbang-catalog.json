@@ -1,8 +1,9 @@
 {
   "aliases": {
     "acp": {
-      "script-ref": "client/target/acp-java-client-0.2.3-SNAPSHOT-runner.jar",
-      "description": "ACP Java Client for any ACP-compatible agent"
+      "script-ref": "io.smallrye.ai:acp-java-client:0.2.3-SNAPSHOT:runner",
+      "description": "ACP Java Client for any ACP-compatible agent",
+      "java-version": "21+"
     },
     "acp-tests": {
       "script-ref": "integration-test/RunTests.java",
