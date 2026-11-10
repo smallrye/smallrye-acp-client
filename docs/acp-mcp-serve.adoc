@@ -8,7 +8,7 @@ acp mcp serve -- Start (in the foreground) the process serving an HTTP MCP serve
 
 [source]
 ----
-acp mcp serve [-h] [--ready-timeout=<ready-timeout>] <id>
+acp mcp serve [-h] [--ready-timeout=<ready-timeout>] [-e=<env>] <id>
 ----
 
 == OPTIONS
@@ -18,6 +18,9 @@ Display this help and exit
 
 *--ready-timeout*=<ready-timeout>::
 Seconds to wait for the url to accept connections before warning (default: 120)
+
+*-e*, *--env*=<env>::
+Environment variable passed to the serve command for this run, overriding the registered one: -e KEY=value (repeatable). ${VAR} references are expanded
 
 == ARGUMENTS
 
