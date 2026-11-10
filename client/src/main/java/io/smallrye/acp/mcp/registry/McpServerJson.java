@@ -97,7 +97,6 @@ public final class McpServerJson {
         McpServer.Builder builder = McpServer.builder(name, transport);
         if (transport == McpTransport.STDIO) {
             if (commandNode != null && commandNode.isArray()) {
-                // OpenCode: "command": ["npx", "-y", "tool"]
                 List<String> command = strings(commandNode);
                 if (command.isEmpty()) {
                     throw new IllegalArgumentException("entry '" + name + "' has an empty command");
