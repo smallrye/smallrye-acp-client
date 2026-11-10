@@ -11,7 +11,7 @@ import io.smallrye.acp.registry.RegistryCommand;
 import io.smallrye.acp.run.RunCommand;
 
 @CommandDefinition(name = "acp", description = "acp is an AI tool for installing an ACP Agent and interact with it: OpenCode, Claude, Pi, Gemini, IBM Bob, etc.", generateHelp = true, groupCommands = {
-        RunCommand.class, RegistryCommand.class, ModelCommand.class, McpCommand.class })
+        RunCommand.class, RegistryCommand.class, ModelCommand.class, McpCommand.class, AcpVersionCommand.class })
 public class AcpCommands implements Command<CommandInvocation> {
 
     @Override
