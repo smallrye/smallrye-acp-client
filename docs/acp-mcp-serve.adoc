@@ -1,0 +1,29 @@
+= ACP-MCP-SERVE
+
+== NAME
+
+acp mcp serve -- Start (in the foreground) the process serving an HTTP MCP server
+
+== SYNOPSIS
+
+[source]
+----
+acp mcp serve [-h] [--ready-timeout=<ready-timeout>] [-e=<env>] <id>
+----
+
+== OPTIONS
+
+*-h*, *--help*::
+Display this help and exit
+
+*--ready-timeout*=<ready-timeout>::
+Seconds to wait for the url to accept connections before warning (default: 120)
+
+*-e*, *--env*=<env>::
+Environment variable passed to the serve command for this run, overriding the registered one: -e KEY=value (repeatable). ${VAR} references are expanded
+
+== ARGUMENTS
+
+*<id>*::
+Id of the http streamable MCP server to launch
+

@@ -1,0 +1,29 @@
+= ACP-MCP-ADD-CONFIG-FILE
+
+== NAME
+
+acp mcp add config file -- Add the MCP servers of a JSON or TOML file, or of an inline JSON document
+
+== SYNOPSIS
+
+[source]
+----
+acp mcp add config file [-hf] [-s=<scope>] <source>
+----
+
+== OPTIONS
+
+*-h*, *--help*::
+Display this help and exit
+
+*-s*, *--scope*=<scope>::
+Registry scope: home (~/.acp/mcp.json, default) or local (./.acp/mcp.json of the current directory)
+
+*-f*, *--force*::
+Replace the servers that already exist
+
+== ARGUMENTS
+
+*<source>*::
+Path of a JSON/TOML file, or an inline JSON document
+

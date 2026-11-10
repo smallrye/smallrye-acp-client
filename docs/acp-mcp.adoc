@@ -1,0 +1,27 @@
+= ACP-MCP
+
+== NAME
+
+acp mcp -- Manage the MCP servers that acp passes to the agents: add, add-config-file, list, get, remove, serve
+
+== SYNOPSIS
+
+[source]
+----
+acp mcp [-h] [COMMAND]
+----
+
+== OPTIONS
+
+*-h*, *--help*::
+Display this help and exit
+
+== COMMANDS
+
+* link:acp-mcp-add.adoc[*add*] - Add an MCP server: acp mcp add <id> -- <command> [args...] | acp mcp add -t http <id> <url> [-- <serve command> [args...]]
+* link:acp-mcp-add-config-file.adoc[*add-config-file*] - Add the MCP servers of a JSON or TOML file, or of an inline JSON document
+* link:acp-mcp-list.adoc[*list*] - List the registered MCP servers
+* link:acp-mcp-get.adoc[*get*] - Get details about an MCP server
+* link:acp-mcp-remove.adoc[*remove*] - Remove an MCP server
+* link:acp-mcp-serve.adoc[*serve*] - Start (in the foreground) the process serving an HTTP MCP server
+

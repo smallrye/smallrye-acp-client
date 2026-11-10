@@ -1,0 +1,40 @@
+= ACP-MCP-ADD
+
+== NAME
+
+acp mcp add -- Add an MCP server: acp mcp add <id> -- <command> [args...] | acp mcp add -t http <id> <url> [-- <serve command> [args...]]
+
+== SYNOPSIS
+
+[source]
+----
+acp mcp add [-hf] [-t=<transport>] [-s=<scope>] [-e=<env>] [-H=<header>] [<arguments>]
+----
+
+== OPTIONS
+
+*-h*, *--help*::
+Display this help and exit
+
+*-t*, *--transport*=<transport>::
+Transport: stdio (default), http or sse
++
+Default: `stdio`
+
+*-s*, *--scope*=<scope>::
+Registry scope: home (~/.acp/mcp.json, default) or local (./.acp/mcp.json of the current directory)
+
+*-e*, *--env*=<env>::
+Environment variable of the stdio server (or of the serve command of an http server): -e KEY=value (repeatable). ${VAR} references are expanded when used
+
+*-H*, *--header*=<header>::
+HTTP header sent to an http/sse server: -H "Authorization: Bearer ${TOKEN}" (repeatable)
+
+*-f*, *--force*::
+Replace the server if it already exists
+
+== ARGUMENTS
+
+*<arguments>*::
+<id> -- <command> [args...] for stdio, <id> <url> [-- <serve command> [args...]] for http/sse
+

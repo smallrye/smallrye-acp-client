@@ -8,8 +8,13 @@ acp model -- Manage model: list
 
 [source]
 ----
-acp model [COMMAND]
+acp model [-h] [COMMAND]
 ----
+
+== OPTIONS
+
+*-h*, *--help*::
+Display this help and exit
 
 == COMMANDS
 

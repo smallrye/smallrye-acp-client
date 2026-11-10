@@ -14,11 +14,17 @@ import org.aesh.command.CommandDefinition;
 import org.aesh.command.CommandResult;
 import org.aesh.command.invocation.CommandInvocation;
 import org.aesh.command.option.Option;
+import org.aesh.command.option.OptionList;
 import org.jboss.logging.Logger;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.smallrye.acp.mcp.model.McpServer;
+import io.smallrye.acp.mcp.model.McpTransport;
+import io.smallrye.acp.mcp.registry.AcpMcpServers;
+import io.smallrye.acp.mcp.registry.McpEnv;
+import io.smallrye.acp.mcp.registry.McpRegistry;
 import io.smallrye.acp.toolbox.GitUtil;
 import io.smallrye.acp.toolbox.ProjectUtil;
 import io.smallrye.agentclientprotocol.sdk.client.AcpClient;
@@ -108,6 +114,9 @@ public class RunCommand implements Command<CommandInvocation> {
 
     @Option(name = "mcp-server-config", description = "MCP server configuration: path to a JSON file or inline JSON array. Supports stdio, sse, and http transport types [env: ACP_MCP_SERVER_CONFIG]")
     String mcpServerConfig;
+
+    @OptionList(name = "mcp-server", description = "Id of a registered MCP server to pass to the agent (see: acp mcp list). Repeatable or comma separated. stdio servers are started by the agent, http servers must be running (acp mcp serve <id>) [env: ACP_MCP_SERVER]")
+    List<String> mcpServerIds;
 
     @Option(shortName = 'b', name = "backup", description = "Backup workspace to target/workdirs before running: yes, no (default: yes). Only applies to Maven/Gradle projects [env: ACP_BACKUP]")
     String backup;
@@ -222,10 +231,10 @@ public class RunCommand implements Command<CommandInvocation> {
         }
 
         mcpServerConfig = ProjectUtil.resolveValueWithPrecedence(mcpServerConfig, "ACP_MCP_SERVER_CONFIG", null);
-        final List<Object> mcpServers;
+        final List<Object> mcpServers = new ArrayList<>();
         if (mcpServerConfig != null && !mcpServerConfig.isEmpty()) {
             try {
-                mcpServers = parseMcpServerConfig(mcpServerConfig);
+                mcpServers.addAll(parseMcpServerConfig(mcpServerConfig));
                 logger.debugf("Loaded %d MCP server(s) from config", mcpServers.size());
             } catch (IOException | IllegalArgumentException e) {
                 String configRef = isInlineJson(mcpServerConfig) ? "(inline JSON)" : mcpServerConfig;
@@ -233,8 +242,13 @@ public class RunCommand implements Command<CommandInvocation> {
                 invocation.println("       " + e.getMessage());
                 return CommandResult.FAILURE;
             }
-        } else {
-            mcpServers = List.of();
+        }
+
+        try {
+            mcpServers.addAll(resolveRegisteredMcpServers(mcpServerIds, mcpServers));
+        } catch (IOException | RuntimeException e) {
+            invocation.println("ERROR: " + e.getMessage());
+            return CommandResult.FAILURE;
         }
 
         var paramBuilder = AgentParameters.builder(binary);
@@ -262,7 +276,12 @@ public class RunCommand implements Command<CommandInvocation> {
             var workflow = client.workflow()
                     .withWorkspace(cwd)
                     .mcpServers(mcpServers)
-                    .onInitialized(RunCommand::logInitialized);
+                    .onInitialized(init -> {
+                        logInitialized(init);
+                        AcpMcpServers.checkCapabilities(mcpServers,
+                                init.agentCapabilities() != null ? init.agentCapabilities().mcpCapabilities() : null,
+                                agent);
+                    });
 
             if (resumeSessionId != null && !resumeSessionId.isEmpty()) {
                 workflow.resumeSession(resumeSessionId)
@@ -535,6 +554,62 @@ public class RunCommand implements Command<CommandInvocation> {
             return text != null ? text.toString() : content.toString();
         }
         return content != null ? content.toString() : "";
+    }
+
+    /**
+     * Resolves the ids passed with {@code --mcp-server} from the acp MCP registry into ACP {@code mcpServers}
+     * entries, expanding the {@code ${VAR}} references and checking that http/sse servers are reachable.
+     */
+    static List<Object> resolveRegisteredMcpServers(List<String> ids, List<Object> alreadyConfigured)
+            throws IOException {
+        List<String> requested = new ArrayList<>();
+        if (ids != null) {
+            ids.forEach(id -> requested.add(id.trim()));
+        }
+        String fromEnv = System.getenv("ACP_MCP_SERVER");
+        if (requested.isEmpty() && fromEnv != null && !fromEnv.isBlank()) {
+            for (String id : fromEnv.split(",")) {
+                requested.add(id.trim());
+            }
+        }
+        if (requested.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> names = new ArrayList<>();
+        for (Object s : alreadyConfigured) {
+            names.add(switch (s) {
+                case McpServerStdio m -> m.name();
+                case McpServerHttp m -> m.name();
+                case McpServerSse m -> m.name();
+                default -> "";
+            });
+        }
+
+        var registry = new McpRegistry();
+        List<Object> servers = new ArrayList<>();
+        for (String id : requested) {
+            if (id.isEmpty()) {
+                continue;
+            }
+            if (names.contains(id)) {
+                throw new IllegalArgumentException("MCP server '" + id + "' is defined more than once");
+            }
+            names.add(id);
+            McpServer definition = registry.require(id);
+            McpServer server = McpEnv.expand(definition);
+            if (server.transport() != McpTransport.STDIO && !AcpMcpServers.isReachable(server.url(), 3000)) {
+                throw new IllegalStateException("The " + server.transport() + " MCP server '" + id + "' is not "
+                        + "reachable at " + server.url()
+                        + (server.serve() != null ? ". Start it first with: acp mcp serve " + id
+                                : ". Check that the server is running"));
+            }
+            logger.debugf("Using the registered MCP server '%s' (%s): %s", id, server.transport(),
+                    server.transport() == McpTransport.STDIO ? "started by the agent: " + server.target()
+                            : server.target());
+            servers.add(AcpMcpServers.toAcp(server));
+        }
+        return servers;
     }
 
     static List<Object> parseMcpServerConfig(String config) throws IOException {

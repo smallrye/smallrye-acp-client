@@ -1,0 +1,26 @@
+= ACP-MCP-REMOVE
+
+== NAME
+
+acp mcp remove -- Remove an MCP server
+
+== SYNOPSIS
+
+[source]
+----
+acp mcp remove [-h] [-s=<scope>] <id>
+----
+
+== OPTIONS
+
+*-h*, *--help*::
+Display this help and exit
+
+*-s*, *--scope*=<scope>::
+Scope to remove the server from: home or local (searched in both when omitted)
+
+== ARGUMENTS
+
+*<id>*::
+Id of the MCP server to remove
+
