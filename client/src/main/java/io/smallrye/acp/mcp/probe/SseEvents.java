@@ -57,12 +57,11 @@ final class SseEvents {
     }
 
     /** Returns the JSON-RPC response with the given id found in an event-stream body. */
-    static JsonNode findResponse(String body, long id, McpProbe.Listener listener) throws IOException {
+    static JsonNode findResponse(String body, long id) throws IOException {
         for (Event event : parse(body)) {
             if (!event.data().trim().startsWith("{")) {
                 continue;
             }
-            listener.inbound(event.data().trim());
             JsonNode node = McpProbe.MAPPER.readTree(event.data());
             if (node.has("id") && node.get("id").asLong() == id) {
                 return node;

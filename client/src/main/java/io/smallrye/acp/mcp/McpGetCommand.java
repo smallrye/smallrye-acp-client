@@ -78,9 +78,9 @@ public class McpGetCommand implements Command<CommandInvocation> {
                 return CommandResult.SUCCESS;
             }
             invocation.println("");
-            McpProbe.Listener listener = verbose ? McpCommandSupport.traceListener(invocation) : McpProbe.Listener.NONE;
-            McpProbe.Result result = McpCommandSupport.probe(server, McpCommandSupport.timeout(timeout), listener);
+            McpProbe.Result result = McpCommandSupport.probe(server, McpCommandSupport.timeout(timeout));
             if (verbose) {
+                McpCommandSupport.printTrace(invocation, result.trace());
                 invocation.println("");
             }
             if (!result.up()) {

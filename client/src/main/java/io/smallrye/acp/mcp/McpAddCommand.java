@@ -33,19 +33,16 @@ import io.smallrye.acp.mcp.registry.McpRegistry;
 @CommandDefinition(name = "add", generateHelp = true, description = "Add an MCP server: acp mcp add <id> -- <command> [args...] | acp mcp add -t http <id> <url> [-- <serve command> [args...]]")
 public class McpAddCommand implements Command<CommandInvocation> {
 
-    /** Unit separator: repeated -e / -H values must not be split on ',' since they may contain it. */
-    private static final char NO_SPLIT = '\u001F';
-
     @Option(shortName = 't', name = "transport", defaultValue = "stdio", description = "Transport: stdio (default), http or sse")
     String transport;
 
     @Option(shortName = 's', name = "scope", description = McpCommandSupport.SCOPE_HELP)
     String scope;
 
-    @OptionList(shortName = 'e', name = "env", valueSeparator = NO_SPLIT, description = "Environment variable of the stdio server (or of the serve command of an http server): -e KEY=value (repeatable). ${VAR} references are expanded when used")
+    @OptionList(shortName = 'e', name = "env", valueSeparator = McpCommandSupport.NO_SPLIT, description = "Environment variable of the stdio server (or of the serve command of an http server): -e KEY=value (repeatable). ${VAR} references are expanded when used")
     List<String> env;
 
-    @OptionList(shortName = 'H', name = "header", valueSeparator = NO_SPLIT, description = "HTTP header sent to an http/sse server: -H \"Authorization: Bearer ${TOKEN}\" (repeatable)")
+    @OptionList(shortName = 'H', name = "header", valueSeparator = McpCommandSupport.NO_SPLIT, description = "HTTP header sent to an http/sse server: -H \"Authorization: Bearer ${TOKEN}\" (repeatable)")
     List<String> headers;
 
     @Option(shortName = 'f', name = "force", hasValue = false, description = "Replace the server if it already exists")

@@ -1,7 +1,9 @@
 package io.smallrye.acp.mcp;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.aesh.command.Command;
 import org.aesh.command.CommandDefinition;
@@ -9,7 +11,9 @@ import org.aesh.command.CommandResult;
 import org.aesh.command.invocation.CommandInvocation;
 import org.aesh.command.option.Argument;
 import org.aesh.command.option.Option;
+import org.aesh.command.option.OptionList;
 
+import io.smallrye.acp.mcp.model.McpServeSpec;
 import io.smallrye.acp.mcp.model.McpServer;
 import io.smallrye.acp.mcp.model.McpTransport;
 import io.smallrye.acp.mcp.registry.AcpMcpServers;
@@ -22,6 +26,10 @@ import io.smallrye.acp.mcp.registry.McpRegistry;
  *
  * <pre>{@code
  * acp mcp serve quarkit-http
+ *
+ * # Pass parameters to the server as environment variables (added to, or overriding, the ones of the registry).
+ * # Quarkus maps QUARKIT_ALLOWED_DIRS to the property quarkit.allowed-dirs
+ * acp mcp serve -e QUARKIT_ALLOWED_DIRS=./applications,/tmp/projects -e QUARKIT_REFERENCES_PATH=./refs quarkit-http
  * }</pre>
  */
 @CommandDefinition(name = "serve", generateHelp = true, description = "Start (in the foreground) the process serving an HTTP MCP server")
@@ -29,6 +37,9 @@ public class McpServeCommand implements Command<CommandInvocation> {
 
     @Option(name = "ready-timeout", description = "Seconds to wait for the url to accept connections before warning (default: 120)")
     Integer readyTimeout;
+
+    @OptionList(shortName = 'e', name = "env", valueSeparator = McpCommandSupport.NO_SPLIT, description = "Environment variable passed to the serve command for this run, overriding the registered one: -e KEY=value (repeatable). ${VAR} references are expanded")
+    List<String> env;
 
     @Argument(required = true, description = "Id of the http streamable MCP server to launch")
     String id;
@@ -62,9 +73,14 @@ public class McpServeCommand implements Command<CommandInvocation> {
             ProcessBuilder pb = new ProcessBuilder(command)
                     .redirectOutput(ProcessBuilder.Redirect.INHERIT)
                     .redirectError(ProcessBuilder.Redirect.INHERIT);
-            pb.environment().putAll(expanded.serve().env());
+            Map<String, String> serveEnv = environment(expanded.serve(), McpCommandSupport.parseEnv(env));
+            pb.environment().putAll(serveEnv);
 
             invocation.println("Serving MCP server '" + id + "': " + String.join(" ", command));
+            if (!serveEnv.isEmpty()) {
+                // only the names: the values may contain secrets
+                invocation.println("  with env: " + String.join(", ", serveEnv.keySet()));
+            }
             Process process = pb.start();
             // stdin is kept open but never written: a server with stdio enabled must not see EOF and stop
             Thread hook = new Thread(() -> stop(process));
@@ -79,6 +95,16 @@ public class McpServeCommand implements Command<CommandInvocation> {
             invocation.println("Error: " + e.getMessage());
             return CommandResult.FAILURE;
         }
+    }
+
+    /**
+     * The environment variables of the serve command: the registered ones, overridden by the ones passed with
+     * {@code -e} (whose {@code ${VAR}} references are expanded).
+     */
+    static Map<String, String> environment(McpServeSpec serve, Map<String, String> overrides) {
+        Map<String, String> result = new LinkedHashMap<>(serve.env());
+        overrides.forEach((k, v) -> result.put(k, McpEnv.expand(v, System::getenv)));
+        return result;
     }
 
     private static void waitUntilReady(CommandInvocation invocation, Process process, McpServer server, int seconds)

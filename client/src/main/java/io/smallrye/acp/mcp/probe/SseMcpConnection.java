@@ -30,22 +30,18 @@ class SseMcpConnection implements McpConnection {
 
     private final HttpClient client;
     private final Map<String, String> headers;
-    private final McpProbe.Listener listener;
     private final BlockingQueue<JsonNode> messages = new LinkedBlockingQueue<>();
     private final CompletableFuture<URI> endpoint = new CompletableFuture<>();
     private final InputStream stream;
 
-    SseMcpConnection(McpServer server, Duration timeout, McpProbe.Listener listener) throws Exception {
+    SseMcpConnection(McpServer server, Duration timeout) throws Exception {
         this.client = HttpClient.newBuilder().connectTimeout(timeout).build();
         this.headers = server.headers();
-        this.listener = listener;
         URI url = URI.create(server.url());
 
         HttpRequest.Builder builder = HttpRequest.newBuilder(url).header("Accept", "text/event-stream").GET();
         headers.forEach(builder::header);
         HttpResponse<InputStream> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
-        listener.info("GET " + url + " -> " + response.statusCode() + " "
-                + response.headers().firstValue("Content-Type").orElse(""));
         if (response.statusCode() / 100 != 2) {
             response.body().close();
             throw new IOException("HTTP " + response.statusCode() + " when opening the SSE stream");
@@ -53,8 +49,7 @@ class SseMcpConnection implements McpConnection {
         this.stream = response.body();
         Thread.ofVirtual().start(() -> read(url));
         try {
-            URI postUrl = endpoint.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-            listener.info("SSE endpoint: " + postUrl);
+            endpoint.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         } catch (java.util.concurrent.TimeoutException e) {
             close();
             throw new TimeoutException("no 'endpoint' event received on the SSE stream");
@@ -73,7 +68,6 @@ class SseMcpConnection implements McpConnection {
                 if ("endpoint".equals(event.name())) {
                     endpoint.complete(base.resolve(event.data().trim()));
                 } else if (event.data().trim().startsWith("{")) {
-                    listener.inbound(event.data().trim());
                     messages.add(McpProbe.MAPPER.readTree(event.data()));
                 }
             }
@@ -104,14 +98,12 @@ class SseMcpConnection implements McpConnection {
 
     private void post(ObjectNode message, Duration timeout) throws Exception {
         String json = McpProbe.MAPPER.writeValueAsString(message);
-        listener.outbound(json);
         URI url = endpoint.getNow(null);
         HttpRequest.Builder builder = HttpRequest.newBuilder(url).timeout(timeout)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(json));
         headers.forEach(builder::header);
         HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-        listener.info("POST " + url + " -> " + response.statusCode());
         if (response.statusCode() / 100 != 2) {
             throw new IOException("HTTP " + response.statusCode() + " for '" + message.get("method").asText() + "'");
         }

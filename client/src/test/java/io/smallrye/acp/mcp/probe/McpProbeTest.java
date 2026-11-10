@@ -34,22 +34,6 @@ class McpProbeTest {
         }
     }
 
-    /** Records the traffic seen by the listener. */
-    static final class Recorder implements McpProbe.Listener {
-        final List<String> out = new CopyOnWriteArrayList<>();
-        final List<String> in = new CopyOnWriteArrayList<>();
-
-        @Override
-        public void outbound(String json) {
-            out.add(json);
-        }
-
-        @Override
-        public void inbound(String json) {
-            in.add(json);
-        }
-    }
-
     @Test
     void stdioServerIsStartedProbedAndStopped() {
         String java = ProcessHandle.current().info().command().orElse("java");
@@ -57,23 +41,24 @@ class McpProbeTest {
                 .args(List.of("-cp", System.getProperty("java.class.path"), FakeStdioMcpServer.class.getName()))
                 .env("FOO", "bar")
                 .build();
-        Recorder recorder = new Recorder();
-
-        McpProbe.Result result = McpProbe.probe(server, Duration.ofSeconds(30), null, recorder);
+        McpProbe.Result result = McpProbe.probe(server, Duration.ofSeconds(30), null);
 
         assertTrue(result.up(), result.error());
         assertEquals("fake-stdio", result.serverName());
         assertEquals("bar", result.serverVersion(), "env variables are passed to the process");
         assertEquals(List.of(new McpProbe.Tool("echo", "Echo a message")), result.tools());
-        assertEquals(3, recorder.out.size(), "initialize, notifications/initialized, tools/list");
-        assertTrue(recorder.out.get(1).contains("notifications/initialized"));
-        assertTrue(recorder.in.stream().anyMatch(s -> s.contains("notifications/message")));
+        List<McpProbe.Message> trace = result.trace();
+        assertEquals(List.of(true, false, true, true, false), trace.stream().map(McpProbe.Message::sent).toList(),
+                "initialize, its response, notifications/initialized, tools/list, its response");
+        assertTrue(trace.get(2).json().contains("notifications/initialized"));
+        assertTrue(trace.stream().noneMatch(m -> m.json().contains("notifications/message")),
+                "server notifications are skipped while waiting for a response");
     }
 
     @Test
     void stdioCommandNotFound() {
         McpProbe.Result result = McpProbe.probe(McpServer.stdio("x", "does-not-exist-xyz").build(),
-                Duration.ofSeconds(5), null, McpProbe.Listener.NONE);
+                Duration.ofSeconds(5), null);
         assertFalse(result.up());
         assertTrue(result.error().contains("does-not-exist-xyz"), result.error());
     }
@@ -81,7 +66,7 @@ class McpProbeTest {
     @Test
     void stdioProcessExitsWithStderr() {
         McpProbe.Result result = McpProbe.probe(McpServer.stdio("x", "sh").args(List.of("-c", "echo boom >&2; exit 3"))
-                .build(), Duration.ofSeconds(10), null, McpProbe.Listener.NONE);
+                .build(), Duration.ofSeconds(10), null);
         assertFalse(result.up());
         assertTrue(result.error().contains("exited with code 3"), result.error());
         assertTrue(result.error().contains("boom"), result.error());
@@ -115,25 +100,26 @@ class McpProbeTest {
         httpServer.start();
         String url = "http://localhost:" + httpServer.getAddress().getPort() + "/mcp";
 
-        Recorder recorder = new Recorder();
         McpProbe.Result result = McpProbe.probe(McpServer.remote("h", McpTransport.HTTP, url).build(),
-                Duration.ofSeconds(10), null, recorder);
+                Duration.ofSeconds(10), null);
 
         assertTrue(result.up(), result.error());
         assertEquals("fake-http", result.serverName());
         assertEquals(List.of("a", "b"), result.tools().stream().map(McpProbe.Tool::name).toList());
         assertEquals("null", sessionHeaders.get(0));
         assertEquals("s-1", sessionHeaders.get(1), "the session id is sent after initialize");
-        assertEquals(2, recorder.in.size());
+        assertEquals(2, result.trace().stream().filter(m -> !m.sent()).count());
     }
 
     @Test
     void httpServerDown() {
         McpProbe.Result result = McpProbe.probe(
                 McpServer.remote("h", McpTransport.HTTP, "http://localhost:1/mcp").build(),
-                Duration.ofSeconds(5), null, McpProbe.Listener.NONE);
+                Duration.ofSeconds(5), null);
         assertFalse(result.up());
         assertEquals("connection refused", result.error());
+        assertEquals(1, result.trace().size(), "the trace keeps what was sent before the failure");
+        assertTrue(result.trace().get(0).json().contains("initialize"));
     }
 
     private static void respond(HttpExchange exchange, int status, String contentType, String body)

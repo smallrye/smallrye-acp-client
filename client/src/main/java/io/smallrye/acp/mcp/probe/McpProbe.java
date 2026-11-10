@@ -25,19 +25,13 @@ public final class McpProbe {
     public static final String PROTOCOL_VERSION = "2025-06-18";
     static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** Receives the raw JSON-RPC traffic and transport events (HTTP status, process start, ...). */
-    public interface Listener {
-        Listener NONE = new Listener() {
-        };
-
-        default void outbound(String json) {
-        }
-
-        default void inbound(String json) {
-        }
-
-        default void info(String message) {
-        }
+    /**
+     * A JSON-RPC message exchanged with the server.
+     *
+     * @param sent {@code true} when sent to the server, {@code false} when received from it
+     * @param json the message
+     */
+    public record Message(boolean sent, String json) {
     }
 
     public record Tool(String name, String description) {
@@ -53,12 +47,13 @@ public final class McpProbe {
      * @param tools tools exposed by the server
      * @param error failure reason when {@code up} is {@code false}
      * @param elapsed duration of the probe
+     * @param trace the JSON-RPC requests, notifications and responses exchanged, in order (up to the failure if any)
      */
     public record Result(boolean up, String serverName, String serverVersion, String protocolVersion, List<Tool> tools,
-            String error, Duration elapsed) {
+            String error, Duration elapsed, List<Message> trace) {
 
-        static Result failure(String error, long startNanos) {
-            return new Result(false, null, null, null, List.of(), error, Duration.ofNanos(System.nanoTime() - startNanos));
+        public static Result failure(String error, Duration elapsed, List<Message> trace) {
+            return new Result(false, null, null, null, List.of(), error, elapsed, List.copyOf(trace));
         }
     }
 
@@ -71,23 +66,26 @@ public final class McpProbe {
      * @param server the server to probe
      * @param timeout maximum duration of each request (the stdio process start is included in the first one)
      * @param workDir working directory of a stdio process
-     * @param listener receives the JSON-RPC traffic
      */
-    public static Result probe(McpServer server, Duration timeout, Path workDir, Listener listener) {
+    public static Result probe(McpServer server, Duration timeout, Path workDir) {
         long start = System.nanoTime();
         AtomicLong ids = new AtomicLong();
+        List<Message> trace = new ArrayList<>();
         try (McpConnection connection = switch (server.transport()) {
-            case STDIO -> new StdioMcpConnection(server, workDir, listener);
-            case HTTP -> new HttpMcpConnection(server, timeout, listener);
-            case SSE -> new SseMcpConnection(server, timeout, listener);
+            case STDIO -> new StdioMcpConnection(server, workDir);
+            case HTTP -> new HttpMcpConnection(server, timeout);
+            case SSE -> new SseMcpConnection(server, timeout);
         }) {
             ObjectNode params = MAPPER.createObjectNode();
             params.put("protocolVersion", PROTOCOL_VERSION);
             params.putObject("capabilities");
             params.putObject("clientInfo").put("name", "acp").put("version", version());
-            JsonNode init = result(connection.request(request(ids.incrementAndGet(), "initialize", params), timeout));
+            JsonNode init = result(send(connection, request(ids.incrementAndGet(), "initialize", params), timeout,
+                    trace));
 
-            connection.notify(notification("notifications/initialized"));
+            ObjectNode initialized = notification("notifications/initialized");
+            trace.add(new Message(true, initialized.toString()));
+            connection.notify(initialized);
 
             List<Tool> tools = new ArrayList<>();
             String cursor = null;
@@ -96,8 +94,8 @@ public final class McpProbe {
                 if (cursor != null) {
                     listParams.put("cursor", cursor);
                 }
-                JsonNode list = result(connection.request(request(ids.incrementAndGet(), "tools/list", listParams),
-                        timeout));
+                JsonNode list = result(send(connection, request(ids.incrementAndGet(), "tools/list", listParams),
+                        timeout, trace));
                 for (JsonNode tool : list.path("tools")) {
                     tools.add(new Tool(tool.path("name").asText(), tool.path("description").asText("")));
                 }
@@ -108,14 +106,23 @@ public final class McpProbe {
                     init.path("serverInfo").path("name").asText(null),
                     init.path("serverInfo").path("version").asText(null),
                     init.path("protocolVersion").asText(null),
-                    tools, null, Duration.ofNanos(System.nanoTime() - start));
+                    tools, null, Duration.ofNanos(System.nanoTime() - start), List.copyOf(trace));
         } catch (Exception e) {
             String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             if (e instanceof java.net.ConnectException || e.getCause() instanceof java.net.ConnectException) {
                 message = "connection refused";
             }
-            return Result.failure(message, start);
+            return Result.failure(message, Duration.ofNanos(System.nanoTime() - start), trace);
         }
+    }
+
+    /** Sends a request, records it and its response in the trace. */
+    private static JsonNode send(McpConnection connection, ObjectNode request, Duration timeout, List<Message> trace)
+            throws Exception {
+        trace.add(new Message(true, request.toString()));
+        JsonNode response = connection.request(request, timeout);
+        trace.add(new Message(false, response.toString()));
+        return response;
     }
 
     static ObjectNode request(long id, String method, ObjectNode params) {

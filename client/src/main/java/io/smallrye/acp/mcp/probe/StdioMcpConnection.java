@@ -32,10 +32,8 @@ class StdioMcpConnection implements McpConnection {
     private final OutputStream stdin;
     private final BlockingQueue<JsonNode> messages = new LinkedBlockingQueue<>();
     private final Deque<String> stderrTail = new ArrayDeque<>();
-    private final McpProbe.Listener listener;
 
-    StdioMcpConnection(McpServer server, Path workDir, McpProbe.Listener listener) throws IOException {
-        this.listener = listener;
+    StdioMcpConnection(McpServer server, Path workDir) throws IOException {
         List<String> command = new ArrayList<>();
         command.add(server.command());
         command.addAll(server.args());
@@ -44,7 +42,6 @@ class StdioMcpConnection implements McpConnection {
             pb.directory(workDir.toFile());
         }
         pb.environment().putAll(server.env());
-        listener.info("Starting: " + String.join(" ", command));
         this.process = pb.start();
         this.stdin = process.getOutputStream();
 
@@ -63,9 +60,7 @@ class StdioMcpConnection implements McpConnection {
                     continue; // not a JSON-RPC message (some servers print banners on stdout)
                 }
                 try {
-                    JsonNode node = McpProbe.MAPPER.readTree(trimmed);
-                    listener.inbound(trimmed);
-                    messages.add(node);
+                    messages.add(McpProbe.MAPPER.readTree(trimmed));
                 } catch (IOException ignored) {
                     // malformed line, skip
                 }
@@ -121,7 +116,6 @@ class StdioMcpConnection implements McpConnection {
 
     private void send(ObjectNode message) throws IOException {
         String json = McpProbe.MAPPER.writeValueAsString(message);
-        listener.outbound(json);
         stdin.write((json + "\n").getBytes(StandardCharsets.UTF_8));
         stdin.flush();
     }
@@ -154,6 +148,5 @@ class StdioMcpConnection implements McpConnection {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        listener.info("Stopped the MCP server process");
     }
 }

@@ -21,6 +21,9 @@ import io.smallrye.acp.mcp.registry.McpEnv;
  */
 final class McpCommandSupport {
 
+    /** Unit separator: repeated -e / -H values must not be split on ',' since they may contain it. */
+    static final char NO_SPLIT = '\u001F';
+
     static final String SCOPE_HELP = "Registry scope: home (~/.acp/mcp.json, default) or local (./.acp/mcp.json of the "
             + "current directory)";
     static final String TIMEOUT_HELP = "Timeout in seconds of each MCP request when checking a server (default: 30)";
@@ -77,34 +80,21 @@ final class McpCommandSupport {
     }
 
     /** Expands the variables then probes the server. Expansion errors are reported as a failed probe. */
-    static McpProbe.Result probe(McpServer server, Duration timeout, McpProbe.Listener listener) {
+    static McpProbe.Result probe(McpServer server, Duration timeout) {
         McpServer expanded;
         try {
             expanded = McpEnv.expand(server);
         } catch (IllegalArgumentException e) {
-            return new McpProbe.Result(false, null, null, null, List.of(), e.getMessage(), Duration.ZERO);
+            return McpProbe.Result.failure(e.getMessage(), Duration.ZERO, List.of());
         }
-        return McpProbe.probe(expanded, timeout, Path.of(System.getProperty("user.dir")), listener);
+        return McpProbe.probe(expanded, timeout, Path.of(System.getProperty("user.dir")));
     }
 
     /** Prints the JSON-RPC traffic: {@code >>} sent to the server, {@code <<} received from it. */
-    static McpProbe.Listener traceListener(CommandInvocation invocation) {
-        return new McpProbe.Listener() {
-            @Override
-            public void outbound(String json) {
-                invocation.println(">> " + pretty(json).replace("\n", "\n   "));
-            }
-
-            @Override
-            public void inbound(String json) {
-                invocation.println("<< " + pretty(json).replace("\n", "\n   "));
-            }
-
-            @Override
-            public void info(String message) {
-                invocation.println("-- " + message);
-            }
-        };
+    static void printTrace(CommandInvocation invocation, List<McpProbe.Message> trace) {
+        for (McpProbe.Message message : trace) {
+            invocation.println((message.sent() ? ">> " : "<< ") + pretty(message.json()).replace("\n", "\n   "));
+        }
     }
 
     private static String pretty(String json) {

@@ -101,7 +101,7 @@ public class McpListCommand implements Command<CommandInvocation> {
                     if (entry.server() == null) {
                         return "invalid";
                     }
-                    McpProbe.Result result = McpCommandSupport.probe(entry.server(), timeout, McpProbe.Listener.NONE);
+                    McpProbe.Result result = McpCommandSupport.probe(entry.server(), timeout);
                     return McpCommandSupport.status(result);
                 }));
             }

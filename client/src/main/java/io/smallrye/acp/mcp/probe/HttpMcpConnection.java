@@ -22,15 +22,13 @@ class HttpMcpConnection implements McpConnection {
     private final HttpClient client;
     private final URI endpoint;
     private final Map<String, String> headers;
-    private final McpProbe.Listener listener;
     private String sessionId;
     private String protocolVersion;
 
-    HttpMcpConnection(McpServer server, Duration timeout, McpProbe.Listener listener) {
+    HttpMcpConnection(McpServer server, Duration timeout) {
         this.client = HttpClient.newBuilder().connectTimeout(timeout).build();
         this.endpoint = URI.create(server.url());
         this.headers = server.headers();
-        this.listener = listener;
     }
 
     @Override
@@ -43,8 +41,8 @@ class HttpMcpConnection implements McpConnection {
         response.headers().firstValue("Mcp-Session-Id").ifPresent(id -> sessionId = id);
         String contentType = response.headers().firstValue("Content-Type").orElse("");
         JsonNode message = contentType.startsWith("text/event-stream")
-                ? SseEvents.findResponse(response.body(), request.get("id").asLong(), listener)
-                : readJson(response.body());
+                ? SseEvents.findResponse(response.body(), request.get("id").asLong())
+                : McpProbe.MAPPER.readTree(response.body());
         if (message == null) {
             throw new IOException("no JSON-RPC response for '" + request.get("method").asText() + "'");
         }
@@ -65,7 +63,6 @@ class HttpMcpConnection implements McpConnection {
 
     private HttpResponse<String> post(ObjectNode message, Duration timeout) throws Exception {
         String json = McpProbe.MAPPER.writeValueAsString(message);
-        listener.outbound(json);
         HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint)
                 .timeout(timeout)
                 .header("Content-Type", "application/json")
@@ -78,15 +75,7 @@ class HttpMcpConnection implements McpConnection {
         if (protocolVersion != null) {
             builder.header("MCP-Protocol-Version", protocolVersion);
         }
-        HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-        listener.info("POST " + endpoint + " -> " + response.statusCode() + " "
-                + response.headers().firstValue("Content-Type").orElse(""));
-        return response;
-    }
-
-    private JsonNode readJson(String body) throws IOException {
-        listener.inbound(body.trim());
-        return McpProbe.MAPPER.readTree(body);
+        return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
     }
 
     private static String abbreviate(String s) {
