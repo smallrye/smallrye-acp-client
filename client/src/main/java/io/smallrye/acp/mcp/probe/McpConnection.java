@@ -15,7 +15,4 @@ interface McpConnection extends AutoCloseable {
 
     /** Sends a notification (no response expected). */
     void notify(ObjectNode notification) throws Exception;
-
-    @Override
-    void close();
 }
