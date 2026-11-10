@@ -1,0 +1,35 @@
+= ACP-MCP-GET
+
+== NAME
+
+acp mcp get -- Get details about an MCP server
+
+== SYNOPSIS
+
+[source]
+----
+acp mcp get [-hcv] [-s=<scope>] [--timeout=<timeout>] <id>
+----
+
+== OPTIONS
+
+*-h*, *--help*::
+Display this help and exit
+
+*-s*, *--scope*=<scope>::
+Look only in this scope: home or local (the effective definition when omitted)
+
+*-c*, *--check*::
+Connect to the server (starting it for stdio), call initialize and tools/list, and print its tools
+
+*-v*, *--verbose*::
+With --check: print the JSON-RPC requests/responses exchanged with the server
+
+*--timeout*=<timeout>::
+Timeout in seconds of each MCP request when checking a server (default: 30)
+
+== ARGUMENTS
+
+*<id>*::
+Id of the MCP server
+

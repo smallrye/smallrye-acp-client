@@ -8,7 +8,7 @@ acp run -- Run a headless (non-interactive) conversation with an ACP agent
 
 [source]
 ----
-acp run [-hv] [-a=<agent>] [--agent-binary=<agent-binary>] [--agent-args=<agent-args>] -p=<prompt> [--provider=<provider>] [-m=<model>] [--request-timeout=<request-timeout>] [--prompt-request-timeout=<prompt-request-timeout>] [--permission-mode=<permission-mode>] [-s=<skill-path>] [--mcp-server-config=<mcp-server-config>] [-b=<backup>] [--backup-project-name=<backup-project-name>] [--workspace-path=<workspace-path>] [-o=<output>] [--resume-session-id=<resume-session-id>] [-l=<log-level>]
+acp run [-hv] [-a=<agent>] [--agent-binary=<agent-binary>] [--agent-args=<agent-args>] -p=<prompt> [--provider=<provider>] [-m=<model>] [--request-timeout=<request-timeout>] [--prompt-request-timeout=<prompt-request-timeout>] [--permission-mode=<permission-mode>] [-s=<skill-path>] [--mcp-server-config=<mcp-server-config>] [--mcp-server=<mcp-server>] [-b=<backup>] [--backup-project-name=<backup-project-name>] [--workspace-path=<workspace-path>] [-o=<output>] [--resume-session-id=<resume-session-id>] [-l=<log-level>]
 ----
 
 == OPTIONS
@@ -52,6 +52,9 @@ Absolute path to a skills folder to add as additional directory [env: SKILL_PATH
 
 *--mcp-server-config*=<mcp-server-config>::
 MCP server configuration: path to a JSON file or inline JSON array. Supports stdio, sse, and http transport types [env: ACP_MCP_SERVER_CONFIG]
+
+*--mcp-server*=<mcp-server>::
+Id of a registered MCP server to pass to the agent (see: acp mcp list). Repeatable or comma separated. stdio servers are started by the agent, http servers must be running (acp mcp serve <id>) [env: ACP_MCP_SERVER]
 
 *-b*, *--backup*=<backup>::
 Backup workspace to target/workdirs before running: yes, no (default: yes). Only applies to Maven/Gradle projects [env: ACP_BACKUP]

@@ -1,0 +1,27 @@
+= ACP-MCP-LIST
+
+== NAME
+
+acp mcp list -- List the registered MCP servers
+
+== SYNOPSIS
+
+[source]
+----
+acp mcp list [-hc] [-s=<scope>] [--timeout=<timeout>]
+----
+
+== OPTIONS
+
+*-h*, *--help*::
+Display this help and exit
+
+*-s*, *--scope*=<scope>::
+Only list this scope: home or local (both when omitted)
+
+*-c*, *--check*::
+Probe each server (initialize + tools/list) and show its status. stdio servers are started then stopped; http servers must be running
+
+*--timeout*=<timeout>::
+Timeout in seconds of each MCP request when checking a server (default: 30)
+

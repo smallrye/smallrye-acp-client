@@ -1,0 +1,26 @@
+= ACP-MCP-SERVE
+
+== NAME
+
+acp mcp serve -- Start (in the foreground) the process serving an HTTP MCP server
+
+== SYNOPSIS
+
+[source]
+----
+acp mcp serve [-h] [--ready-timeout=<ready-timeout>] <id>
+----
+
+== OPTIONS
+
+*-h*, *--help*::
+Display this help and exit
+
+*--ready-timeout*=<ready-timeout>::
+Seconds to wait for the url to accept connections before warning (default: 120)
+
+== ARGUMENTS
+
+*<id>*::
+Id of the http streamable MCP server to launch
+
