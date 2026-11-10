@@ -1,4 +1,4 @@
-name: SmallRye Prepare Release for JAva ACP Client
+name: SmallRye Prepare Release for Java ACP Client
 
 on:
   pull_request:
