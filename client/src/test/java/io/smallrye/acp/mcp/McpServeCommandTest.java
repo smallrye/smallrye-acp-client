@@ -1,7 +1,9 @@
 package io.smallrye.acp.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.Map;
@@ -39,5 +41,14 @@ class McpServeCommandTest {
     @Test
     void invalidCliEnvIsRejected() {
         assertThrows(IllegalArgumentException.class, () -> McpCommandSupport.parseEnv(List.of("NO_VALUE")));
+    }
+
+    @Test
+    void recursiveServeIsDetected() {
+        assertFalse(McpServeCommand.isServing(null, "quarkit-http"));
+        assertFalse(McpServeCommand.isServing("", "quarkit-http"));
+        assertFalse(McpServeCommand.isServing("quarkit", "quarkit-http"));
+        assertTrue(McpServeCommand.isServing("quarkit-http", "quarkit-http"));
+        assertTrue(McpServeCommand.isServing("other,quarkit-http", "quarkit-http"));
     }
 }
