@@ -1,5 +1,8 @@
 package io.smallrye.acp.mcp;
 
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,6 +38,12 @@ import io.smallrye.acp.mcp.registry.McpRegistry;
 @CommandDefinition(name = "serve", generateHelp = true, description = "Start (in the foreground) the process serving an HTTP MCP server")
 public class McpServeCommand implements Command<CommandInvocation> {
 
+    /**
+     * Set in the environment of the serve process to the id of the server it serves, so that a serve command which
+     * (directly or not) runs {@code acp mcp serve <id>} again is detected instead of recursing forever.
+     */
+    static final String SERVING_ENV = "ACP_MCP_SERVING";
+
     @Option(name = "ready-timeout", description = "Seconds to wait for the url to accept connections before warning (default: 120)")
     Integer readyTimeout;
 
@@ -61,6 +70,13 @@ public class McpServeCommand implements Command<CommandInvocation> {
                         + server.url() + " -- <command> [args...]");
                 return CommandResult.FAILURE;
             }
+            if (isServing(System.getenv(SERVING_ENV), id)) {
+                invocation.println("Error: the serve command of '" + id + "' runs 'acp mcp serve " + id
+                        + "' again, which would loop forever.");
+                invocation.println("Fix it with: acp mcp add -f -t " + server.transport() + " " + id + " "
+                        + server.url() + " -- <command that really starts the server> [args...]");
+                return CommandResult.FAILURE;
+            }
             McpServer expanded = McpEnv.expand(server);
             if (AcpMcpServers.isReachable(expanded.url(), 1000)) {
                 invocation.println("Warning: " + expanded.url() + " already accepts connections: another process may "
@@ -75,6 +91,8 @@ public class McpServeCommand implements Command<CommandInvocation> {
                     .redirectError(ProcessBuilder.Redirect.INHERIT);
             Map<String, String> serveEnv = environment(expanded.serve(), McpCommandSupport.parseEnv(env));
             pb.environment().putAll(serveEnv);
+            String serving = System.getenv(SERVING_ENV);
+            pb.environment().put(SERVING_ENV, addServing(serving, id));
 
             invocation.println("Serving MCP server '" + id + "': " + String.join(" ", command));
             if (!serveEnv.isEmpty()) {
@@ -105,6 +123,28 @@ public class McpServeCommand implements Command<CommandInvocation> {
         Map<String, String> result = new LinkedHashMap<>(serve.env());
         overrides.forEach((k, v) -> result.put(k, McpEnv.expand(v, System::getenv)));
         return result;
+    }
+
+    /**
+     * Adds {@code id} to the list of the servers being served ({@value #SERVING_ENV}): comma separated, each id URL
+     * encoded so that an id containing a comma is kept intact.
+     */
+    static String addServing(String serving, String id) {
+        String encoded = URLEncoder.encode(id, StandardCharsets.UTF_8);
+        return serving == null || serving.isEmpty() ? encoded : serving + "," + encoded;
+    }
+
+    /** Whether {@code id} is in the list of the servers already being served by ancestors (see {@link #addServing}). */
+    static boolean isServing(String serving, String id) {
+        if (serving == null || serving.isEmpty()) {
+            return false;
+        }
+        for (String s : serving.split(",")) {
+            if (URLDecoder.decode(s, StandardCharsets.UTF_8).equals(id)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void waitUntilReady(CommandInvocation invocation, Process process, McpServer server, int seconds)

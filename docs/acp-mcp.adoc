@@ -2,7 +2,7 @@
 
 == NAME
 
-acp mcp -- Manage the MCP servers that acp passes to the agents: add, add-config-file, list, get, remove, serve
+acp mcp -- Manage the MCP servers that acp passes to the agents: add, add-config-file, list, get, remove, serve, tools, call
 
 == SYNOPSIS
 
@@ -24,4 +24,6 @@ Display this help and exit
 * link:acp-mcp-get.adoc[*get*] - Get details about an MCP server
 * link:acp-mcp-remove.adoc[*remove*] - Remove an MCP server
 * link:acp-mcp-serve.adoc[*serve*] - Start (in the foreground) the process serving an HTTP MCP server
+* link:acp-mcp-tools.adoc[*tools*] - List the tools exposed by an MCP server (stateless protocol 2026-07-28)
+* link:acp-mcp-call.adoc[*call*] - Call a tool of an MCP server: acp mcp call <id> <tool> ['<arguments as JSON>'] [-p name=value...]
 

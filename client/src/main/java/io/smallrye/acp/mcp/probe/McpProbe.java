@@ -71,11 +71,7 @@ public final class McpProbe {
         long start = System.nanoTime();
         AtomicLong ids = new AtomicLong();
         List<Message> trace = new ArrayList<>();
-        try (McpConnection connection = switch (server.transport()) {
-            case STDIO -> new StdioMcpConnection(server, workDir);
-            case HTTP -> new HttpMcpConnection(server, timeout);
-            case SSE -> new SseMcpConnection(server, timeout);
-        }) {
+        try (McpConnection connection = McpConnection.open(server, timeout, workDir)) {
             ObjectNode params = MAPPER.createObjectNode();
             params.put("protocolVersion", PROTOCOL_VERSION);
             params.putObject("capabilities");
@@ -150,7 +146,7 @@ public final class McpProbe {
         return response.path("result");
     }
 
-    private static String version() {
+    static String version() {
         String v = McpProbe.class.getPackage().getImplementationVersion();
         return v != null ? v : "dev";
     }

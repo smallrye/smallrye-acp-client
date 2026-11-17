@@ -8,7 +8,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * A tiny stdio MCP server used by {@link McpProbeTest}: answers initialize and tools/list.
+ * A tiny stdio MCP server used by {@link McpProbeTest} and {@link McpClientTest}: answers initialize, tools/list and
+ * tools/call (tool echo; tool fail answers a result with isError=true). With {@code STRICT=true} it rejects the requests sent
+ * before initialize.
  */
 public class FakeStdioMcpServer {
 
@@ -17,6 +19,8 @@ public class FakeStdioMcpServer {
         System.out.println("banner line that is not JSON");
         System.err.println("starting fake server, env FOO=" + System.getenv("FOO"));
         BufferedReader in = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
+        boolean strict = "true".equals(System.getenv("STRICT"));
+        boolean initialized = false;
         String line;
         while ((line = in.readLine()) != null) {
             JsonNode msg = mapper.readTree(line);
@@ -24,10 +28,24 @@ public class FakeStdioMcpServer {
                 continue;
             }
             String id = msg.get("id").toString();
-            String result = switch (msg.get("method").asText()) {
+            String method = msg.get("method").asText();
+            if (strict && !initialized && !"initialize".equals(method)) {
+                System.out.println("{\"jsonrpc\":\"2.0\",\"id\":" + id
+                        + ",\"error\":{\"code\":-32600,\"message\":\"Server not initialized\"}}");
+                System.out.flush();
+                continue;
+            }
+            initialized |= "initialize".equals(method);
+            String result = switch (method) {
                 case "initialize" -> "{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{\"tools\":{}},"
                         + "\"serverInfo\":{\"name\":\"fake-stdio\",\"version\":\"" + System.getenv("FOO") + "\"}}";
                 case "tools/list" -> "{\"tools\":[{\"name\":\"echo\",\"description\":\"Echo a message\"}]}";
+                case "tools/call" -> "fail".equals(msg.path("params").path("name").asText())
+                        ? "{\"content\":[{\"type\":\"text\",\"text\":\"boom\"}],\"isError\":true}"
+                        : "{\"content\":[{\"type\":\"text\",\"text\":"
+                                + mapper.writeValueAsString("echo: " + msg.path("params").path("arguments").path("message")
+                                        .asText())
+                                + "}]}";
                 default -> null;
             };
             if (result == null) {

@@ -1,0 +1,38 @@
+= ACP-MCP-CALL
+
+== NAME
+
+acp mcp call -- Call a tool of an MCP server: acp mcp call <id> <tool> ['<arguments as JSON>'] [-p name=value...]
+
+== SYNOPSIS
+
+[source]
+----
+acp mcp call [-hv] [-p=<param>] [--json] [--legacy] [--timeout=<timeout>] [<arguments>]
+----
+
+== OPTIONS
+
+*-h*, *--help*::
+Display this help and exit
+
+*-p*, *--param*=<param>::
+Argument of the tool: -p name=value (repeatable), added to the JSON arguments. The value is parsed as JSON when valid (10, true, ["a"]...), used as a string otherwise
+
+*--json*::
+Print the whole tool result as JSON (content, structuredContent, isError)
+
+*-v*, *--verbose*::
+Print the JSON-RPC requests/responses exchanged with the server
+
+*--legacy*::
+Perform the initialize handshake (protocol 2025-06-18) instead of sending stateless requests (protocol 2026-07-28). Used automatically when the server rejects a stateless request
+
+*--timeout*=<timeout>::
+Timeout in seconds of each MCP request (default: 30)
+
+== ARGUMENTS
+
+*<arguments>*::
+<id> <tool> ['<arguments as JSON>']
+

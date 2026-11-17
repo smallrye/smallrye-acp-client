@@ -21,5 +21,6 @@ Display this help and exit
 * link:acp-run.adoc[*run*] - Run a headless (non-interactive) conversation with an ACP agent
 * link:acp-registry.adoc[*registry*] - Manage ACP agents via a local registry: list, install, remove
 * link:acp-model.adoc[*model*] - Manage model: list
-* link:acp-mcp.adoc[*mcp*] - Manage the MCP servers that acp passes to the agents: add, add-config-file, list, get, remove, serve
+* link:acp-mcp.adoc[*mcp*] - Manage the MCP servers that acp passes to the agents: add, add-config-file, list, get, remove, serve, tools, call
+* link:acp-version.adoc[*version*] - Show the version of the acp client
 
