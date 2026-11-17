@@ -503,7 +503,7 @@ acp run -p "Say hello"
 ```
 When developing locally, built the SNAPSHOT and then run it as:
 ```shell
-jbang io.smallrye.ai:acp-java-client:0.2.4-SNAPSHOT:runner run -p "Say hello"
+jbang io.smallrye.ai:acp-java-client:0.2.5-SNAPSHOT:runner run -p "Say hello"
 ```
 
 ### Output modes
