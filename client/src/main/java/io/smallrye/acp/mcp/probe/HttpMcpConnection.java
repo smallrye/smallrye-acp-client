@@ -35,7 +35,8 @@ class HttpMcpConnection implements McpConnection {
     public JsonNode request(ObjectNode request, Duration timeout) throws Exception {
         HttpResponse<String> response = post(request, timeout);
         if (response.statusCode() / 100 != 2) {
-            throw new IOException("HTTP " + response.statusCode() + " for '" + request.get("method").asText() + "'"
+            throw new McpHttpStatusException(response.statusCode(), "HTTP " + response.statusCode() + " for '"
+                    + request.get("method").asText() + "'"
                     + (response.body().isBlank() ? "" : ": " + abbreviate(response.body())));
         }
         response.headers().firstValue("Mcp-Session-Id").ifPresent(id -> sessionId = id);
@@ -72,8 +73,22 @@ class HttpMcpConnection implements McpConnection {
         if (sessionId != null) {
             builder.header("Mcp-Session-Id", sessionId);
         }
-        if (protocolVersion != null) {
-            builder.header("MCP-Protocol-Version", protocolVersion);
+        // a stateless request (protocol 2026-07-28) carries its protocol version in params._meta
+        String version = message.path("params").path("_meta").path(McpClient.META_PROTOCOL_VERSION)
+                .asText(protocolVersion);
+        if (version != null) {
+            builder.header("MCP-Protocol-Version", version);
+        }
+        // routing headers of the stateless protocol, ignored by older servers
+        String method = message.path("method").asText(null);
+        if (method != null) {
+            builder.header("Mcp-Method", method);
+            if ("tools/call".equals(method) || "prompts/get".equals(method)) {
+                String name = message.path("params").path("name").asText(null);
+                if (name != null) {
+                    builder.header("Mcp-Name", name);
+                }
+            }
         }
         return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
     }
