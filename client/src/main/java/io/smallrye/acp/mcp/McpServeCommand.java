@@ -1,5 +1,8 @@
 package io.smallrye.acp.mcp;
 
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -89,7 +92,7 @@ public class McpServeCommand implements Command<CommandInvocation> {
             Map<String, String> serveEnv = environment(expanded.serve(), McpCommandSupport.parseEnv(env));
             pb.environment().putAll(serveEnv);
             String serving = System.getenv(SERVING_ENV);
-            pb.environment().put(SERVING_ENV, serving == null || serving.isEmpty() ? id : serving + "," + id);
+            pb.environment().put(SERVING_ENV, addServing(serving, id));
 
             invocation.println("Serving MCP server '" + id + "': " + String.join(" ", command));
             if (!serveEnv.isEmpty()) {
@@ -122,13 +125,22 @@ public class McpServeCommand implements Command<CommandInvocation> {
         return result;
     }
 
-    /** Whether {@code id} is in the comma separated list of the servers already being served by ancestors. */
+    /**
+     * Adds {@code id} to the list of the servers being served ({@value #SERVING_ENV}): comma separated, each id URL
+     * encoded so that an id containing a comma is kept intact.
+     */
+    static String addServing(String serving, String id) {
+        String encoded = URLEncoder.encode(id, StandardCharsets.UTF_8);
+        return serving == null || serving.isEmpty() ? encoded : serving + "," + encoded;
+    }
+
+    /** Whether {@code id} is in the list of the servers already being served by ancestors (see {@link #addServing}). */
     static boolean isServing(String serving, String id) {
         if (serving == null || serving.isEmpty()) {
             return false;
         }
         for (String s : serving.split(",")) {
-            if (s.equals(id)) {
+            if (URLDecoder.decode(s, StandardCharsets.UTF_8).equals(id)) {
                 return true;
             }
         }

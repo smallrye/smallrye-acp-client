@@ -51,4 +51,16 @@ class McpServeCommandTest {
         assertTrue(McpServeCommand.isServing("quarkit-http", "quarkit-http"));
         assertTrue(McpServeCommand.isServing("other,quarkit-http", "quarkit-http"));
     }
+
+    @Test
+    void recursiveServeIsDetectedForAnIdContainingAComma() {
+        String serving = McpServeCommand.addServing(null, "quarkit,http");
+        assertTrue(McpServeCommand.isServing(serving, "quarkit,http"));
+        assertFalse(McpServeCommand.isServing(serving, "quarkit"));
+        assertFalse(McpServeCommand.isServing(serving, "http"));
+        serving = McpServeCommand.addServing(serving, "other");
+        assertTrue(McpServeCommand.isServing(serving, "quarkit,http"));
+        assertTrue(McpServeCommand.isServing(serving, "other"));
+        assertTrue(McpServeCommand.isServing(McpServeCommand.addServing("a%2Cb", "c%d"), "c%d"), "% is encoded too");
+    }
 }
