@@ -9,7 +9,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * A tiny stdio MCP server used by {@link McpProbeTest} and {@link McpClientTest}: answers initialize, tools/list and
- * tools/call (tool echo). With {@code STRICT=true} it rejects the requests sent before initialize.
+ * tools/call (tool echo; tool fail answers a result with isError=true). With {@code STRICT=true} it rejects the requests sent
+ * before initialize.
  */
 public class FakeStdioMcpServer {
 
@@ -39,10 +40,12 @@ public class FakeStdioMcpServer {
                 case "initialize" -> "{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{\"tools\":{}},"
                         + "\"serverInfo\":{\"name\":\"fake-stdio\",\"version\":\"" + System.getenv("FOO") + "\"}}";
                 case "tools/list" -> "{\"tools\":[{\"name\":\"echo\",\"description\":\"Echo a message\"}]}";
-                case "tools/call" -> "{\"content\":[{\"type\":\"text\",\"text\":"
-                        + mapper.writeValueAsString("echo: " + msg.path("params").path("arguments").path("message")
-                                .asText())
-                        + "}]}";
+                case "tools/call" -> "fail".equals(msg.path("params").path("name").asText())
+                        ? "{\"content\":[{\"type\":\"text\",\"text\":\"boom\"}],\"isError\":true}"
+                        : "{\"content\":[{\"type\":\"text\",\"text\":"
+                                + mapper.writeValueAsString("echo: " + msg.path("params").path("arguments").path("message")
+                                        .asText())
+                                + "}]}";
                 default -> null;
             };
             if (result == null) {
