@@ -164,7 +164,13 @@ public class McpCallCommand implements Command<CommandInvocation> {
                 default -> out.append(McpCommandSupport.pretty(item));
             }
         }
-        if (out.isEmpty() && result.has("structuredContent")) {
+        if (result.has("structuredContent")
+                && java.util.stream.StreamSupport.stream(result.path("content").spliterator(), false)
+                        .noneMatch(item -> "text".equals(item.path("type").asText())
+                                && !item.path("text").asText().isEmpty())) {
+            if (!out.isEmpty()) {
+                out.append(System.lineSeparator());
+            }
             out.append(McpCommandSupport.pretty(result.get("structuredContent")));
         }
         return out.isEmpty() ? "(empty result)" : out.toString();
