@@ -37,7 +37,8 @@ final class McpCommandSupport {
             + ") instead of sending stateless requests (protocol " + McpClient.STATELESS_PROTOCOL_VERSION
             + "). Used automatically when the server rejects a stateless request";
 
-    static final ObjectMapper MAPPER = new ObjectMapper();
+    static final ObjectMapper MAPPER = new ObjectMapper()
+            .enable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     private static final ObjectMapper PRETTY = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
 
     private McpCommandSupport() {
