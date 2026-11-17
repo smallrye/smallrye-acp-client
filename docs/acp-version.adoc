@@ -1,0 +1,18 @@
+= ACP-VERSION
+
+== NAME
+
+acp version -- Show the version of the acp client
+
+== SYNOPSIS
+
+[source]
+----
+acp version [-h]
+----
+
+== OPTIONS
+
+*-h*, *--help*::
+Display this help and exit
+

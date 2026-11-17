@@ -1,0 +1,38 @@
+= ACP-MCP-TOOLS
+
+== NAME
+
+acp mcp tools -- List the tools exposed by an MCP server (stateless protocol 2026-07-28)
+
+== SYNOPSIS
+
+[source]
+----
+acp mcp tools [-hv] [--schema] [--json] [--legacy] [--timeout=<timeout>] <id>
+----
+
+== OPTIONS
+
+*-h*, *--help*::
+Display this help and exit
+
+*--schema*::
+Print the parameters of each tool (from its input schema); * marks the required ones
+
+*--json*::
+Print the tools as a JSON array (as returned by tools/list)
+
+*-v*, *--verbose*::
+Print the JSON-RPC requests/responses exchanged with the server
+
+*--legacy*::
+Perform the initialize handshake (protocol 2025-06-18) instead of sending stateless requests (protocol 2026-07-28). Used automatically when the server rejects a stateless request
+
+*--timeout*=<timeout>::
+Timeout in seconds of each MCP request (default: 30)
+
+== ARGUMENTS
+
+*<id>*::
+Id of the MCP server
+
