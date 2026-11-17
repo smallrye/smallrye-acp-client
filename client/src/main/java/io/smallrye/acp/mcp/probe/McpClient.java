@@ -17,12 +17,17 @@ import io.smallrye.acp.mcp.model.McpServer;
  * It first talks the <b>stateless</b> protocol {@value #STATELESS_PROTOCOL_VERSION}: no {@code initialize} handshake
  * and no session, every request carries the protocol version, the client info and its capabilities in
  * {@code params._meta} (and, over HTTP, the {@code MCP-Protocol-Version}, {@code Mcp-Method} and {@code Mcp-Name}
- * headers). A single request is then enough to list or call the tools.
+ * headers). A single request is then enough to list the tools (two to call one, see below).
  *
  * <p>
  * When the server rejects the first stateless request (JSON-RPC error or HTTP 4xx), the client falls back to the
  * classic handshake ({@code initialize} with {@value McpProbe#PROTOCOL_VERSION} + {@code notifications/initialized})
  * and resends the request. {@link #open(McpServer, Duration, Path, boolean) legacy} forces this mode.
+ *
+ * <p>
+ * Only read-only requests are ever resent: before the first {@code tools/call}, the protocol is determined with a
+ * {@code tools/list} request, so that a tool with side effects is never executed twice (e.g. when it fails with an
+ * internal error on a server accepting both protocols).
  */
 public final class McpClient implements AutoCloseable {
 
@@ -96,6 +101,10 @@ public final class McpClient implements AutoCloseable {
      * {@code isError}).
      */
     public JsonNode callTool(String name, JsonNode arguments) throws Exception {
+        if (mode == Mode.UNKNOWN) {
+            // determine the protocol with a read-only request: a failed tools/call must never be replayed
+            request("tools/list", McpProbe.MAPPER.createObjectNode());
+        }
         ObjectNode params = McpProbe.MAPPER.createObjectNode();
         params.put("name", name);
         params.set("arguments", arguments != null ? arguments : McpProbe.MAPPER.createObjectNode());

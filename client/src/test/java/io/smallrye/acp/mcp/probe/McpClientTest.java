@@ -91,7 +91,9 @@ class McpClientTest {
             JsonNode result = client.callTool("echo", MAPPER.readTree("{\"message\":\"stdio\"}"));
             assertEquals("echo: stdio", result.path("content").get(0).path("text").asText());
             assertTrue(client.stateless());
-            assertEquals(2, client.trace().size(), "a single request/response");
+            assertEquals(List.of("tools/list", "tools/call"), client.trace().stream().filter(McpProbe.Message::sent)
+                    .map(msg -> msg.json().replaceAll(".*\"method\":\"([^\"]+)\".*", "$1")).toList(),
+                    "the protocol is determined with tools/list before calling the tool");
         }
     }
 
@@ -128,6 +130,20 @@ class McpClientTest {
         }
     }
 
+    @Test
+    void failedToolCallIsNeverReplayed() throws Exception {
+        // a server accepting both protocols, whose tool fails with an internal error (after possible side effects)
+        String url = startHttp(false, true);
+        try (McpClient client = McpClient.open(McpServer.remote("h", McpTransport.HTTP, url).build(), TIMEOUT, null,
+                false)) {
+            var e = assertThrows(McpClient.McpErrorException.class,
+                    () -> client.callTool("crash", MAPPER.createObjectNode()));
+            assertEquals(-32603, e.code());
+        }
+        assertEquals(List.of("tools/list", "tools/call"), requests.stream().map(r -> r.path("method").asText())
+                .toList(), "no handshake and no second tools/call");
+    }
+
     private static McpServer fakeStdio(boolean strict) {
         String java = ProcessHandle.current().info().command().orElse("java");
         return McpServer.stdio("fake", java)
@@ -141,6 +157,11 @@ class McpClientTest {
      * requests without session with a 400, like the session based SDKs).
      */
     private String startHttp(boolean legacy) throws IOException {
+        return startHttp(legacy, false);
+    }
+
+    /** @param dual a stateless server which accepts the initialize handshake too */
+    private String startHttp(boolean legacy, boolean dual) throws IOException {
         httpServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
         httpServer.createContext("/mcp", exchange -> {
             if ("DELETE".equals(exchange.getRequestMethod())) {
@@ -162,7 +183,7 @@ class McpClientTest {
                 respond(exchange, 400, "text/plain", "Bad Request: No valid session ID provided");
                 return;
             }
-            if (!legacy && !McpClient.STATELESS_PROTOCOL_VERSION.equals(
+            if (!legacy && !(dual && "initialize".equals(method)) && !McpClient.STATELESS_PROTOCOL_VERSION.equals(
                     msg.path("params").path("_meta").path(McpClient.META_PROTOCOL_VERSION).asText())) {
                 respond(exchange, 200, "application/json", "{\"jsonrpc\":\"2.0\",\"id\":" + id
                         + ",\"error\":{\"code\":-32600,\"message\":\"Unsupported protocol version\"}}");
@@ -176,12 +197,15 @@ class McpClientTest {
                 }
                 case "tools/list" -> "{\"jsonrpc\":\"2.0\",\"id\":" + id
                         + ",\"result\":{\"tools\":[{\"name\":\"echo\",\"inputSchema\":{\"type\":\"object\"}}]}}";
-                case "tools/call" -> "echo".equals(msg.path("params").path("name").asText())
-                        ? "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"result\":{\"content\":[{\"type\":\"text\","
-                                + "\"text\":\"echo: " + msg.path("params").path("arguments").path("message").asText()
-                                + "\"}]}}"
-                        : "{\"jsonrpc\":\"2.0\",\"id\":" + id
-                                + ",\"error\":{\"code\":-32602,\"message\":\"Unknown tool\"}}";
+                case "tools/call" -> "crash".equals(msg.path("params").path("name").asText())
+                        ? "{\"jsonrpc\":\"2.0\",\"id\":" + id
+                                + ",\"error\":{\"code\":-32603,\"message\":\"Internal error\"}}"
+                        : "echo".equals(msg.path("params").path("name").asText())
+                                ? "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"result\":{\"content\":[{\"type\":\"text\","
+                                        + "\"text\":\"echo: " + msg.path("params").path("arguments").path("message").asText()
+                                        + "\"}]}}"
+                                : "{\"jsonrpc\":\"2.0\",\"id\":" + id
+                                        + ",\"error\":{\"code\":-32602,\"message\":\"Unknown tool\"}}";
                 default -> "{\"jsonrpc\":\"2.0\",\"id\":" + id
                         + ",\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}";
             };
