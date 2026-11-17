@@ -77,7 +77,8 @@ public final class McpClient implements AutoCloseable {
      * @param legacy {@code true} to skip the stateless protocol and perform the {@code initialize} handshake
      */
     public static McpClient open(McpServer server, Duration timeout, Path workDir, boolean legacy) throws Exception {
-        return new McpClient(McpConnection.open(server, timeout, workDir), timeout, legacy);
+        return new McpClient(McpConnection.open(server, timeout, workDir), timeout,
+                legacy || server.transport() == io.smallrye.acp.mcp.model.McpTransport.SSE);
     }
 
     /** Returns the tools exposed by the server (all the pages of {@code tools/list}). */
